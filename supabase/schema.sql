@@ -240,10 +240,6 @@ begin
     return json_build_object('ok', false, 'error', 'wrong_domain');
   end if;
 
-  if coalesce((auth.jwt()->>'email_verified')::boolean, false) is not true then
-    return json_build_object('ok', false, 'error', 'email_not_verified');
-  end if;
-
   select value::timestamptz into v_cutoff
   from public.settings
   where key = 'response_cutoff_iso';
