@@ -42,7 +42,7 @@ focus-group-signup/
 3. Run `npm run build-config` to generate `public/config.js` from your environment variables.
 4. In Supabase SQL Editor, run `supabase/drop_all.sql` if you are replacing the original booking tool, then run `supabase/schema.sql`.
 5. In `supabase/schema.sql`, replace the seed rows in `focus_groups`, `settings`, and `admins`. The included `time_options` seed covers 30-minute slots on Monday 18 May, Tuesday 19 May, and Wednesday 20 May 2026.
-7. Configure Google OAuth in Supabase Authentication:
+6. Configure Google OAuth in Supabase Authentication:
    - In the Supabase dashboard, go to **Authentication > Providers** and enable **Google**.
    - Create Google OAuth credentials in the Google Cloud Console if you do not already have them.
    - Add this callback URI to the Google OAuth client:
