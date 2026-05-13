@@ -1,131 +1,93 @@
-# Dio TOD Signup
+# Focus Group Scheduler
 
-Workshop registration for Diocesan School for Girls Teacher Only Day.
+A lightweight internal availability poll for scheduling focus group sessions.
 
-- 10 workshops × 4 morning slots = 40 sessions
-- 25-seat cap per session
-- Up to 4 picks per staff member, no duplicate workshops, one per slot
-- Google OAuth restricted to `@diocesan.school.nz`
-- Editing closes 8 May 2026 23:59 NZT
+Respondents sign in with Google, choose their respondent group, and mark each time as available, if needed, or unavailable. Admins can then see the counts by group, choose the final time for each group, copy notification text, export recipient CSVs, and download `.ics` calendar files.
+
+All groups see the same open set of candidate times. The admin can choose a different final time for each group.
 
 ## Stack
 
-- **Frontend:** vanilla HTML + Supabase JS (CDN), no build step
-- **Backend:** Supabase (Postgres + Auth + RPC)
-- **Hosting:** Vercel (free Hobby tier)
-- **Auth:** Google OAuth via Supabase, internal-only Workspace app
+- **Frontend:** static HTML/CSS/JS, no build step
+- **Backend:** Supabase Auth, Postgres, RLS, and RPC functions
+- **Hosting:** Vercel or any static host
+- **Auth:** Google OAuth via Supabase, with an allowed email domain
 
-## Setup checklist (one-time)
+## Project Structure
 
-Tick these off in order. Steps marked **(Rob)** need a human; the rest are code.
-
-### 1. Supabase project — **(Rob, done)**
-
-- [x] Project created: `https://fnbkuirtpwjockendkqu.supabase.co`
-- [x] Publishable key in hand
-- [ ] Run `supabase/schema.sql` in SQL Editor (Project → SQL Editor → New query → paste → Run)
-- [ ] Verify with `select count(*) from public.sessions;` → should return **40**
-
-### 2. Google Cloud OAuth — **(Rob)**
-
-1. Go to [console.cloud.google.com](https://console.cloud.google.com), create a new project (e.g. `dio-tod-signup`).
-2. **APIs & Services → OAuth consent screen:**
-   - User type: **Internal** (this restricts to `@diocesan.school.nz` and skips Google verification)
-   - App name: `Dio TOD Signup`
-   - Support email: `rmccrae@diocesan.school.nz`
-   - Developer contact: `rmccrae@diocesan.school.nz`
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID:**
-   - Application type: **Web application**
-   - Name: `Supabase Auth`
-   - **Authorized redirect URIs:** add `https://fnbkuirtpwjockendkqu.supabase.co/auth/v1/callback`
-4. Copy the **Client ID** and **Client Secret**.
-5. In Supabase dashboard: **Authentication → Providers → Google** → toggle on, paste Client ID + Secret, save.
-6. In Supabase dashboard: **Authentication → URL Configuration:**
-   - Site URL: `https://<your-vercel-url>.vercel.app` (set after first deploy — placeholder OK for now)
-   - Additional redirect URLs: same
-
-### 3. Repo + Vercel — **(Rob)**
-
-1. Push this repo to GitHub (instructions below).
-2. Go to [vercel.com](https://vercel.com), import the GitHub repo.
-3. **Framework preset:** Other (it's static).
-4. **Root directory:** `public`
-5. Deploy. Copy the resulting `*.vercel.app` URL.
-6. Go back to Supabase → Authentication → URL Configuration → update Site URL with the real Vercel URL.
-7. Update `public/config.js` if needed (currently uses values you provided).
-
-### 4. Keep-warm cron — **(Rob, after first push)**
-
-Free Supabase projects pause after 7 days of inactivity. The included GitHub Action pings the database daily.
-
-In your GitHub repo: **Settings → Secrets and variables → Actions → New repository secret:**
-- `SUPABASE_URL` = `https://fnbkuirtpwjockendkqu.supabase.co`
-- `SUPABASE_ANON_KEY` = your publishable key
-
-The workflow at `.github/workflows/keep-warm.yml` runs daily at 02:00 NZT.
-
-## Running locally
-
-It's a static site. Run a local server from the `public` folder:
-
-```bash
-cd public
-python3 -m http.server 8080
-# then visit http://localhost:8080
+```text
+focus-group-signup/
+|-- public/
+|   |-- index.html        # respondent availability form
+|   |-- app.js            # respondent logic
+|   |-- admin.html        # admin scheduling view
+|   |-- admin.js          # admin logic, exports, .ics generation
+|   |-- styles.css        # shared styling
+|   `-- config.js         # public Supabase config + UI defaults
+|-- supabase/
+|   |-- schema.sql        # full schema, seed data, RLS, RPCs
+|   `-- drop_all.sql      # clean-slate reset
+|-- docs/
+|   `-- OPERATIONS.md     # admin playbook
+`-- .github/workflows/
+    `-- keep-warm.yml
 ```
 
-For Google OAuth to work locally, two URLs need to be allowed:
+## Setup Checklist
 
-1. **In Supabase → Authentication → URL Configuration → Redirect URLs**, add:
-   ```
-   http://localhost:8080/**
-   ```
-   (Already done in Step 5 of the setup checklist — confirm it's there.)
+1. Create or reuse a Supabase project.
+2. Copy `.env.example` to `.env` and update with your Supabase URL, publishable key, organisation name, and email domain.
+3. Run `npm run build-config` to generate `public/config.js` from your environment variables.
+4. In Supabase SQL Editor, run `supabase/drop_all.sql` if you are replacing the original booking tool, then run `supabase/schema.sql`.
+5. In `supabase/schema.sql`, replace the seed rows in `focus_groups`, `settings`, and `admins`. The included `time_options` seed covers 30-minute slots on Monday 18 May, Tuesday 19 May, and Wednesday 20 May 2026.
+7. Configure Google OAuth in Supabase Authentication:
+   - In the Supabase dashboard, go to **Authentication > Providers** and enable **Google**.
+   - Create Google OAuth credentials in the Google Cloud Console if you do not already have them.
+   - Add this callback URI to the Google OAuth client:
+     `https://<your-supabase-project>.supabase.co/auth/v1/callback`
+   - In Supabase **Auth > Settings**, set your site URL to the deployed app URL and add redirect URLs for your deployed site and any local test URLs such as `http://localhost:3000`.
+   - Since the app uses `redirectTo: window.location.origin`, the final redirect after sign-in returns to the current app origin.
+7. Deploy the `public` folder to Vercel. Use the **Other** framework preset and set the root directory to `public`.
+8. In Supabase Authentication URL Configuration, set the deployed site URL and add local redirect URLs if needed.
+9. For Vercel deployments, ensure you set the environment variables in Vercel's dashboard, then run `npm run build-config` during your build command (or manually before deploying).
 
-2. **In Google Cloud Console → Credentials → your OAuth client → Authorised redirect URIs**:
-   The only URI you ever need here is the Supabase callback:
-   ```
-   https://fnbkuirtpwjockendkqu.supabase.co/auth/v1/callback
-   ```
-   Don't add `localhost` here — Supabase handles the bounce back to your site URL.
+## Testing Without a Local Server
 
-## Managing the live system
+If your organisation blocks local web servers, use a hosted preview instead:
 
-See **[docs/OPERATIONS.md](docs/OPERATIONS.md)** for the full operations playbook — capacity changes, deadline tweaks, manual cancellations, monitoring routine, what to do when something breaks.
+1. Push this repo to GitHub.
+2. Import it into Vercel with the root directory set to `public`.
+3. Use the Vercel preview URL for testing.
+4. Add the preview URL to Supabase Authentication redirect URLs.
 
-Quick reference:
+For example:
 
-> ⚠️ **Always include a `where` clause on `update` statements.** A bare `update public.settings set value = '...';` will overwrite *every* row.
-
-- **Edit cutoff:** `update public.settings set value = '2026-05-09T23:59:59+12:00' where key = 'edit_cutoff_iso';`
-- **Add an admin:** `insert into public.admins (email) values ('someone@diocesan.school.nz');`
-- **Change capacity:** `update public.sessions set capacity = 30 where workshop_id = 'rob-toolkit';`
-- **Wipe test data:** `delete from public.registrations;`
-- **Full reset:** run `supabase/drop_all.sql` then `supabase/schema.sql`
-
-## Project structure
-
-```
-dio-tod-signup/
-├── public/                    # Vercel deploys this folder as static
-│   ├── index.html            # main signup app
-│   ├── admin.html            # admin dashboard (admins only)
-│   └── config.js             # Supabase URL + publishable key
-├── supabase/
-│   ├── schema.sql            # full schema — run in SQL Editor
-│   └── drop_all.sql          # nuke + pave (use with care)
-├── scripts/
-│   └── stress_test.py        # 50-client concurrent stress test
-├── .github/workflows/
-│   └── keep-warm.yml         # daily Supabase ping
-└── README.md
+```text
+https://your-preview-url.vercel.app/**
 ```
 
-## Pushing to GitHub (first time)
+## Admin Workflow
 
-```bash
-cd /Users/rmccrae/GitProjects/dio-tod-signup
-git push -u origin main
-```
+1. Respondents submit availability at `/`.
+2. Admins open `/admin`.
+3. For each group, the admin page highlights the time with the most available respondents.
+4. Enter the location and optional note, then click **Set as final**.
+5. Use the notification tools for that group:
+   - Copy emails
+   - Copy message
+   - Download `.ics`
+   - Download recipient CSV
+   - Open an email draft
 
-The repo is already initialised and committed locally; first push is yours so you control credentials.
+Static sites cannot attach files to an email automatically, so the email draft button creates the message body and recipients; attach the downloaded `.ics` file before sending.
+
+## Database Model
+
+- `focus_groups`: respondent groups plus the final selected time/location
+- `time_options`: candidate times shown to every respondent
+- `respondents`: one row per signed-in respondent
+- `availability`: the respondent's available and if-needed time options. Missing rows mean unavailable after they submit.
+- `admins`: emails allowed to use `/admin`
+- `settings`: app title, organisation name, email domain, response cutoff
+
+Writes go through RPC functions so RLS can keep respondents limited to their own response while admins can see aggregate and recipient data.

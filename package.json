@@ -1,0 +1,9 @@
+{
+  "name": "focus-group-signup",
+  "version": "1.0.0",
+  "description": "A lightweight internal availability poll for scheduling focus group sessions.",
+  "type": "module",
+  "scripts": {
+    "build-config": "node scripts/build-config.js"
+  }
+}

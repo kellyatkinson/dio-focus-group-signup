@@ -1,11 +1,11 @@
 name: Keep Supabase Warm
 
 # Free Supabase projects pause after 7 days of inactivity. This workflow
-# pings the database once a day so it stays awake while registration is open.
+# pings Supabase once a day so it stays awake while responses are open.
 
 on:
   schedule:
-    # 14:00 UTC = 02:00 NZST (NZDT in winter shifts to 01:00 UTC ≠ 13:00 UTC).
+    # 14:00 UTC = 02:00 NZST. During daylight saving this is a little later.
     # Cadence is what matters; exact local time isn't critical.
     - cron: '0 14 * * *'
   workflow_dispatch:
@@ -33,18 +33,14 @@ jobs:
             echo "::error::Supabase auth health returned HTTP $health"
             exit 1
           fi
-          # Also exercise PostgREST + RPC, which is the path the app actually uses.
-          # get_session_seats is grant-execute to authenticated, so we send the
-          # anon key as a Bearer token (Supabase treats this as anon role + jwt).
+          # Also exercise PostgREST, which is the path the app actually uses.
           rpc=$(curl -sS -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/rpc/get_session_seats" \
+            "$SUPABASE_URL/rest/v1/settings?select=key&limit=1" \
             -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{}')
-          echo "RPC ping: $rpc"
-          # We expect 401 (anon can't call this RPC) or 200; both prove the DB
-          # is awake. We only fail on 5xx or 0 (network).
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "PostgREST ping: $rpc"
+          # We expect 401/403 (anon cannot read settings) or 200; all prove
+          # the API path is awake. We only fail on 5xx or 0 (network).
           if [ "$rpc" -ge 500 ] || [ "$rpc" -eq 0 ]; then
             echo "::error::Supabase RPC ping returned HTTP $rpc"
             exit 1

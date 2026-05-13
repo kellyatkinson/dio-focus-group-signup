@@ -1,15 +1,18 @@
--- Run this in Supabase SQL Editor ONLY if you need a clean slate.
--- It nukes all the schema this project created. Will drop your registrations.
+-- Run this in Supabase SQL Editor only if you need a clean slate.
+-- It drops all schema objects created by this project, including responses.
 
 drop trigger  if exists enforce_email_domain_on_signup on auth.users;
 drop function if exists public.enforce_email_domain();
-drop function if exists public.register_for_session(uuid);
-drop function if exists public.unregister_from_session(uuid);
-drop function if exists public.get_session_seats();
-drop function if exists public.admin_get_all_registrations();
-drop table    if exists public.registrations cascade;
-drop table    if exists public.sessions      cascade;
-drop table    if exists public.workshops     cascade;
-drop table    if exists public.slots         cascade;
-drop table    if exists public.admins        cascade;
-drop table    if exists public.settings      cascade;
+drop function if exists public.save_my_availability(text, uuid[]);
+drop function if exists public.save_my_availability(text, jsonb);
+drop function if exists public.admin_get_availability_summary();
+drop function if exists public.admin_get_all_responses();
+drop function if exists public.admin_set_group_final_time(text, uuid, text, text);
+drop function if exists public.is_admin_email(text);
+
+drop table if exists public.availability cascade;
+drop table if exists public.respondents cascade;
+drop table if exists public.focus_groups cascade;
+drop table if exists public.time_options cascade;
+drop table if exists public.admins cascade;
+drop table if exists public.settings cascade;
