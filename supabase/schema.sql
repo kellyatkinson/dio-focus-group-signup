@@ -95,9 +95,16 @@ create index if not exists availability_time_option_id_idx on public.availabilit
 -- The time options below are the requested 30-minute windows for 18-20 May.
 
 insert into public.focus_groups (id, name, description, display_order) values
-  ('group-a', 'Group A', 'Respondent group A', 1),
-  ('group-b', 'Group B', 'Respondent group B', 2),
-  ('group-c', 'Group C', 'Respondent group C', 3)
+  ('juniorschool', 'Junior School teaching & admin', '', 1),
+  ('seniorschool', 'Senior School teaching & admin', '', 2),
+  ('admin', 'Admin, Attendance, Student Services', '', 3),
+  ('ea', 'Executive Assistants & Personal Assistants', '', 4),
+  ('pastoral', 'Pastoral, Wellbeing, Boarding', '', 5),
+  ('people', 'People Processes', 'People & Culture, HR, Payroll', 6),
+  ('business', 'Business Services', 'Finance, Business, Property', 7),
+  ('development', 'Admission, Enrolment, Development', 'including international & community engagement', 8),
+  ('cocurricular', 'Co-curricular, Sport, Perf Arts, EOTC', 'including activity operations', 9),
+  ('systems', 'Systems, data, timetabling, eLearning', '', 10)
 on conflict (id) do update set
   name = excluded.name,
   description = excluded.description,
@@ -150,7 +157,7 @@ on conflict (key) do update set
   value = excluded.value;
 
 insert into public.admins (email) values
-  ('rmccrae@diocesan.school.nz')
+  ('katkinson@diocesan.school.nz')
 on conflict (email) do nothing;
 
 -- ---------------------------------------------------------------------

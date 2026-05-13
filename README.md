@@ -6,6 +6,8 @@ Respondents sign in with Google, choose their respondent group, and mark each ti
 
 All groups see the same open set of candidate times. The admin can choose a different final time for each group.
 
+Based on Rob McCrae's [Teacher-Only Day scheduler](https://github.com/robmccrae1/dio-tod-signup).
+
 ## Stack
 
 - **Frontend:** static HTML/CSS/JS, no build step
