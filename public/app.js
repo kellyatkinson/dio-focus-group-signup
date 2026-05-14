@@ -205,7 +205,7 @@ function downloadText(filename, content, type) {
 function renderStaticText() {
   document.title = appTitle();
   $('#app-title').textContent = appTitle();
-  $('#signin-copy').textContent = `Sign in with your ${organisationName()} Google account to submit your availability.`;
+  $('#signin-copy').textContent = `Sign in with your Dio account to submit your availability.`;
   const domain = emailDomain();
   $('#domain-copy').textContent = domain ? `Only @${domain} accounts can sign in.` : '';
 }
