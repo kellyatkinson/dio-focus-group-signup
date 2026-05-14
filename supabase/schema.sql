@@ -97,14 +97,14 @@ create index if not exists availability_time_option_id_idx on public.availabilit
 insert into public.focus_groups (id, name, description, display_order) values
   ('juniorschool', 'Junior School teaching & admin', '', 1),
   ('seniorschool', 'Senior School teaching & admin', '', 2),
-  ('admin', 'Admin, Attendance, Student Services', '', 3),
-  ('ea', 'Executive Assistants & Personal Assistants', '', 4),
+  ('admin', 'Attendance, Student Services, Timetabling, Admin', '', 3),
+  ('ea', 'Executive Assistants', '', 4),
   ('pastoral', 'Pastoral, Wellbeing, Boarding', '', 5),
   ('people', 'People Processes', 'People & Culture, HR, Payroll', 6),
-  ('business', 'Business Services', 'Finance, Business, Property', 7),
+  ('business', 'Business Services', 'including Finance, Marketing, Property', 7),
   ('development', 'Admission, Enrolment, Development', 'including international & community engagement', 8),
   ('cocurricular', 'Co-curricular, Sport, Perf Arts, EOTC', 'including activity operations', 9),
-  ('systems', 'Systems, data, timetabling, eLearning', '', 10)
+  ('systems', 'Systems, data, timetabling, eLearning', 'BIM, ISS, etc', 10)
 on conflict (id) do update set
   name = excluded.name,
   description = excluded.description,
@@ -128,7 +128,7 @@ insert into public.time_options (id, label, starts_at, ends_at, display_order, a
   ('00000000-0000-0000-0000-000000000115', 'Tue 19 May 2:00pm',  '2026-05-19T14:00:00+12:00', '2026-05-19T14:30:00+12:00', 15, true),
   ('00000000-0000-0000-0000-000000000116', 'Tue 19 May 2:30pm',  '2026-05-19T14:30:00+12:00', '2026-05-19T15:00:00+12:00', 16, true),
   ('00000000-0000-0000-0000-000000000117', 'Tue 19 May 3:00pm',  '2026-05-19T15:00:00+12:00', '2026-05-19T15:30:00+12:00', 17, true),
-  ('00000000-0000-0000-0000-000000000118', 'Tue 19 May 3:30pm',  '2026-05-19T15:30:00+12:00', '2026-05-19T16:00:00+12:00', 18, true),
+  ('00000000-0000-0000-0000-000000000118', 'Tue 19 May 3:45pm',  '2026-05-19T15:45:00+12:00', '2026-05-19T16:15:00+12:00', 18, true),
   ('00000000-0000-0000-0000-000000000119', 'Wed 20 May 10:00am', '2026-05-20T10:00:00+12:00', '2026-05-20T10:30:00+12:00', 19, true),
   ('00000000-0000-0000-0000-000000000120', 'Wed 20 May 10:30am', '2026-05-20T10:30:00+12:00', '2026-05-20T11:00:00+12:00', 20, true),
   ('00000000-0000-0000-0000-000000000121', 'Wed 20 May 11:00am', '2026-05-20T11:00:00+12:00', '2026-05-20T11:30:00+12:00', 21, true),
@@ -140,7 +140,11 @@ insert into public.time_options (id, label, starts_at, ends_at, display_order, a
   ('00000000-0000-0000-0000-000000000127', 'Wed 20 May 2:00pm',  '2026-05-20T14:00:00+12:00', '2026-05-20T14:30:00+12:00', 27, true),
   ('00000000-0000-0000-0000-000000000128', 'Wed 20 May 2:30pm',  '2026-05-20T14:30:00+12:00', '2026-05-20T15:00:00+12:00', 28, true),
   ('00000000-0000-0000-0000-000000000129', 'Wed 20 May 3:00pm',  '2026-05-20T15:00:00+12:00', '2026-05-20T15:30:00+12:00', 29, true),
-  ('00000000-0000-0000-0000-000000000130', 'Wed 20 May 3:30pm',  '2026-05-20T15:30:00+12:00', '2026-05-20T16:00:00+12:00', 30, true)
+  ('00000000-0000-0000-0000-000000000130', 'Wed 20 May 3:45pm',  '2026-05-20T15:45:00+12:00', '2026-05-20T16:15:00+12:00', 30, true),
+  ('00000000-0000-0000-0000-000000000131', 'Thu 21 May 2:00pm',  '2026-05-21T14:00:00+12:00', '2026-05-20T14:30:00+12:00', 31, true),
+  ('00000000-0000-0000-0000-000000000132', 'Thu 21 May 2:30pm',  '2026-05-21T14:30:00+12:00', '2026-05-20T15:00:00+12:00', 32, true),
+  ('00000000-0000-0000-0000-000000000133', 'Thu 21 May 3:00pm',  '2026-05-21T15:00:00+12:00', '2026-05-20T15:30:00+12:00', 33, true),
+  ('00000000-0000-0000-0000-000000000134', 'Thu 21 May 3:45pm',  '2026-05-21T15:45:00+12:00', '2026-05-20T16:15:00+12:00', 34, true)  
 on conflict (id) do update set
   label = excluded.label,
   starts_at = excluded.starts_at,
