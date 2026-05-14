@@ -256,33 +256,25 @@ async function loadGroupResponseCounts() {
 }
 
 async function loadTimeSlotStats() {
-  const groupId = myRespondent?.group_id || null;
-
   const { data, error } = await SB.from('availability')
     .select('time_option_id, status, respondents(group_id)')
-    .eq('status', 'available');
+    .eq('status', 'available')
+    .neq('user_id', session.user.id);
 
   if (error) {
     console.warn('Could not load time slot stats', error);
     return;
   }
 
-  const totals = new Map();
-  const inGroup = new Map();
+  timeSlotStats = new Map();
   for (const row of data || []) {
     const tid = row.time_option_id;
-    totals.set(tid, (totals.get(tid) || 0) + 1);
-    if (groupId && row.respondents?.group_id === groupId) {
-      inGroup.set(tid, (inGroup.get(tid) || 0) + 1);
-    }
+    if (!timeSlotStats.has(tid)) timeSlotStats.set(tid, { total: 0, byGroup: new Map() });
+    const entry = timeSlotStats.get(tid);
+    entry.total += 1;
+    const gid = row.respondents?.group_id;
+    if (gid) entry.byGroup.set(gid, (entry.byGroup.get(gid) || 0) + 1);
   }
-
-  timeSlotStats = new Map(
-    [...totals.keys()].map((tid) => [tid, {
-      total: totals.get(tid) || 0,
-      inGroup: inGroup.get(tid) || 0,
-    }]),
-  );
 }
 
 async function loadMyData() {
@@ -330,12 +322,16 @@ function renderGroups() {
     `;
   }).join('');
 
-  groupGrid.querySelectorAll('input[name="group-id"]').forEach((input) => {
-    input.addEventListener('mousedown', function () {
-      this.dataset.wasChecked = this.checked ? 'true' : '';
+  groupGrid.querySelectorAll('label.choice').forEach((label) => {
+    const input = label.querySelector('input[type="radio"]');
+    label.addEventListener('mousedown', () => {
+      label.dataset.wasChecked = input.checked ? 'true' : '';
     });
-    input.addEventListener('click', function () {
-      if (this.dataset.wasChecked === 'true') this.checked = false;
+    label.addEventListener('click', () => {
+      if (label.dataset.wasChecked === 'true') {
+        input.checked = false;
+      }
+      renderTimeOptions();
     });
   });
 }
@@ -357,6 +353,7 @@ function renderTimeOptions() {
   }
 
   const cutoff = new Date(Date.now() + 30 * 60 * 1000);
+  const currentGroupId = form.querySelector('input[name="group-id"]:checked')?.value || null;
 
   timeGrid.innerHTML = Array.from(byDay.entries()).map(([day, times]) => `
     <div class="day-section">
@@ -369,13 +366,14 @@ function renderTimeOptions() {
             hour: 'numeric', minute: '2-digit', hour12: true,
           });
           const stats = timeSlotStats.get(time.id);
-          const hasGroupInterest = stats?.inGroup > 0;
+          const inGroupCount = currentGroupId ? (stats?.byGroup?.get(currentGroupId) || 0) : 0;
+          const hasGroupInterest = inGroupCount > 0;
 
           let statsHtml = '';
           if (stats && stats.total > 0) {
             const people = (n) => n === 1 ? '1 other person' : `${n} other people`;
-            const groupPart = myRespondent?.group_id && stats.inGroup > 0
-              ? `<span class="slot-stat-group">${people(stats.inGroup)} from your group</span>`
+            const groupPart = currentGroupId && inGroupCount > 0
+              ? `<span class="slot-stat-group">${people(inGroupCount)} from your group</span>`
               : '';
             statsHtml = `<div class="slot-stats">
               <span class="slot-stat-total">${people(stats.total)} also available</span>
