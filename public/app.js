@@ -455,8 +455,8 @@ function renderStatusCards() {
     });
   }
 
-  $('#status-copy').textContent = myRespondent
-    ? 'You can update your availability while responses are open.'
+  $('#status-copy').innerHTML = myRespondent
+    ? 'You can update your availability at any time, for sessions that haven\'t started yet. Once your session is confirmed, details will be sent by email and your responses will be locked.'
     : 'Choose your group, then mark each time as available or unavailable.';
 
 }
