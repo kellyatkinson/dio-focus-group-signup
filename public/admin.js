@@ -704,7 +704,8 @@ async function loadData() {
 
   if (summaryR.error) throw summaryR.error;
   if (responsesR.error) throw responsesR.error;
-  if (extrasR.error) throw extrasR.error;
+  // Extra attendees RPC may not exist yet if DB migration hasn't run — degrade gracefully.
+  if (extrasR.error && !extrasR.error.message?.includes('schema cache')) throw extrasR.error;
 
   summaryRows = summaryR.data || [];
   responses = responsesR.data || [];
