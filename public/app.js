@@ -382,12 +382,13 @@ function renderTimeOptions() {
           const hasGroupInterest = stats?.inGroup > 0;
 
           let statsHtml = '';
-          if (stats) {
+          if (stats && stats.total > 0) {
+            const people = (n) => n === 1 ? '1 other person' : `${n} other people`;
             const groupPart = myRespondent?.group_id && stats.inGroup > 0
-              ? `<span class="slot-stat-group">${stats.inGroup} from your group</span>`
+              ? `<span class="slot-stat-group">${people(stats.inGroup)} from your group</span>`
               : '';
             statsHtml = `<div class="slot-stats">
-              <span class="slot-stat-total">${stats.total} available</span>
+              <span class="slot-stat-total">${people(stats.total)} also available</span>
               ${groupPart}
             </div>`;
           }

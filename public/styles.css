@@ -341,11 +341,15 @@ button:focus-visible,
 
 .day-heading {
   margin: 0;
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--brand);
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--line);
+  padding: 7px 12px;
+  background: var(--brand-soft);
+  border: 1px solid #b8c9e5;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .day-slots {
