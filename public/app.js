@@ -455,14 +455,18 @@ function renderStatusCards() {
     });
   }
 
-  $('#status-copy').innerHTML = myRespondent
-    ? 'You can update your availability at any time, for sessions that haven\'t started yet. Once your session is confirmed, details will be sent by email and your responses will be locked.'
-    : 'Choose your group, then mark each time as available or unavailable.';
+  const finalTime = selectedFinalTime(group);
+  $('#status-copy').innerHTML = finalTime
+    ? 'Your session has been confirmed — your availability is now locked. We\'ll be in touch with details by email.'
+    : myRespondent
+      ? 'You can update your availability for sessions that haven\'t started yet.'
+      : 'Choose your group, then mark each time as available or unavailable.';
 
 }
 
 function renderFormState() {
-  const disabled = responsesClosed() || saveInFlight;
+  const finalised = !!selectedFinalTime(selectedGroup());
+  const disabled = responsesClosed() || saveInFlight || finalised;
   form.querySelectorAll('input').forEach((input) => {
     if (input.closest('.time-choice--past')) return;
     input.disabled = disabled;
