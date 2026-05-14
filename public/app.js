@@ -102,17 +102,6 @@ function formatDateRange(startIso, endIso) {
   return `${datePart}, ${startTime} - ${endPart}`;
 }
 
-function formatCutoff() {
-  const cutoff = responseCutoff();
-  if (!cutoff) return '';
-  return cutoff.toLocaleString('en-NZ', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
 
 function selectedGroup() {
   return groups.find((group) => group.id === myRespondent?.group_id) || null;
@@ -297,9 +286,10 @@ async function loadTimeSlotStats() {
 }
 
 async function loadMyData() {
+  const userId = session.user.id;
   const [respondentR, availabilityR] = await Promise.all([
-    SB.from('respondents').select('*').maybeSingle(),
-    SB.from('availability').select('time_option_id, status'),
+    SB.from('respondents').select('*').eq('user_id', userId).maybeSingle(),
+    SB.from('availability').select('time_option_id, status').eq('user_id', userId),
   ]);
 
   if (respondentR.error && respondentR.error.code !== 'PGRST116') throw respondentR.error;
@@ -476,6 +466,7 @@ function renderStatusCards() {
 function renderFormState() {
   const disabled = responsesClosed() || saveInFlight;
   form.querySelectorAll('input').forEach((input) => {
+    if (input.closest('.time-choice--past')) return;
     input.disabled = disabled;
   });
   saveBtn.disabled = disabled;
