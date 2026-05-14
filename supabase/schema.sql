@@ -617,8 +617,93 @@ create policy "admins table is private" on public.admins
   using (false);
 
 -- ---------------------------------------------------------------------
+-- Cross-group session attendees
+-- Run this block once in Supabase SQL Editor after deploying this update.
+-- ---------------------------------------------------------------------
+
+create table if not exists public.session_extra_attendees (
+  group_id       text        not null references public.focus_groups(id) on delete cascade,
+  user_email     text        not null,
+  user_name      text,
+  added_at       timestamptz not null default now(),
+  added_by_email text,
+  primary key (group_id, user_email)
+);
+
+alter table public.session_extra_attendees disable row level security;
+
+drop function if exists public.admin_add_extra_attendee(text, text, text);
+
+create or replace function public.admin_add_extra_attendee(
+  p_group_id   text,
+  p_user_email text,
+  p_user_name  text default null
+)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin_email(auth.jwt()->>'email') then
+    raise exception 'forbidden';
+  end if;
+  insert into public.session_extra_attendees (group_id, user_email, user_name, added_by_email)
+  values (p_group_id, lower(trim(p_user_email)), p_user_name, auth.jwt()->>'email')
+  on conflict (group_id, user_email) do update set user_name = excluded.user_name;
+  return json_build_object('ok', true);
+end;
+$$;
+
+drop function if exists public.admin_remove_extra_attendee(text, text);
+
+create or replace function public.admin_remove_extra_attendee(
+  p_group_id   text,
+  p_user_email text
+)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin_email(auth.jwt()->>'email') then
+    raise exception 'forbidden';
+  end if;
+  delete from public.session_extra_attendees
+  where group_id = p_group_id
+    and lower(user_email) = lower(trim(p_user_email));
+  return json_build_object('ok', true);
+end;
+$$;
+
+drop function if exists public.admin_get_extra_attendees();
+
+create or replace function public.admin_get_extra_attendees()
+returns table (group_id text, user_email text, user_name text, added_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin_email(auth.jwt()->>'email') then
+    raise exception 'forbidden';
+  end if;
+  return query
+    select sea.group_id, sea.user_email, sea.user_name, sea.added_at
+    from public.session_extra_attendees sea
+    order by sea.group_id, sea.added_at;
+end;
+$$;
+
+grant execute on function public.admin_add_extra_attendee(text, text, text) to authenticated;
+grant execute on function public.admin_remove_extra_attendee(text, text) to authenticated;
+grant execute on function public.admin_get_extra_attendees() to authenticated;
+
+-- ---------------------------------------------------------------------
 -- Sanity checks
 -- ---------------------------------------------------------------------
 -- select count(*) from public.focus_groups;
--- select count(*) from public.time_options where active is true; -- expect 30
+-- select count(*) from public.time_options where active is true; -- expect 34
 -- select * from public.admin_get_availability_summary();
+-- select * from public.admin_get_extra_attendees();
