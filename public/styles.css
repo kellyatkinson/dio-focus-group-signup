@@ -277,6 +277,37 @@ button:focus-visible,
   color: var(--muted);
 }
 
+.signin-desc {
+  max-width: 540px;
+  margin: 0 auto 20px;
+  text-align: left;
+  color: var(--ink);
+  font-size: 14px;
+  background: var(--brand-soft);
+  border: 1px solid #b8c9e5;
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+
+.signin-desc p {
+  margin: 0 0 8px;
+  max-width: none;
+  color: var(--ink);
+}
+
+.signin-desc ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.signin-desc li {
+  margin-bottom: 4px;
+}
+
+.signin-desc p:last-child {
+  margin-bottom: 0;
+}
+
 .group-grid,
 .time-grid {
   display: grid;
@@ -288,7 +319,64 @@ button:focus-visible,
 }
 
 .time-grid {
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.day-section {
+  display: grid;
+  gap: 6px;
+}
+
+.day-heading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--brand);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.day-slots {
+  display: grid;
+  gap: 6px;
+}
+
+.day-slots .time-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 0;
+  padding: 8px 12px;
+}
+
+.day-slots .time-title {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.day-slots .availability-toggle {
+  margin-top: 0;
+  flex-shrink: 0;
+  width: 200px;
+}
+
+.intro-block {
+  background: var(--brand-soft);
+  border: 1px solid #b8c9e5;
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+
+.intro-block p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.intro-block p:last-child {
+  margin-bottom: 0;
 }
 
 .choice,
@@ -331,7 +419,7 @@ button:focus-visible,
 
 .availability-toggle {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;

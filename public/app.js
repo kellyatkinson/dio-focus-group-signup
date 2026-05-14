@@ -304,31 +304,45 @@ function renderTimeOptions() {
     return;
   }
 
-  timeGrid.innerHTML = timeOptions.map((time) => {
-    const status = myAvailability.get(time.id) || 'unavailable';
-    return `
-      <div class="time-choice">
-        <div class="time-inner">
-          <span class="time-title">${escapeHtml(time.label)}</span>
-          <span class="time-detail">${escapeHtml(formatDateRange(time.starts_at, time.ends_at))}</span>
-          <div class="availability-toggle" role="radiogroup" aria-label="${escapeHtml(time.label)}">
-            <label>
-              <input type="radio" name="availability-${escapeHtml(time.id)}" value="available" ${status === 'available' ? 'checked' : ''}>
-              <span>Available</span>
-            </label>
-            <label>
-              <input type="radio" name="availability-${escapeHtml(time.id)}" value="if_needed" ${status === 'if_needed' ? 'checked' : ''}>
-              <span>If needed</span>
-            </label>
-            <label>
-              <input type="radio" name="availability-${escapeHtml(time.id)}" value="unavailable" ${status === 'unavailable' ? 'checked' : ''}>
-              <span>Unavailable</span>
-            </label>
-          </div>
-        </div>
+  const byDay = new Map();
+  for (const time of timeOptions) {
+    const dayKey = new Date(time.starts_at).toLocaleDateString('en-NZ', {
+      weekday: 'long', day: 'numeric', month: 'long',
+    });
+    if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+    byDay.get(dayKey).push(time);
+  }
+
+  timeGrid.innerHTML = Array.from(byDay.entries()).map(([day, times]) => `
+    <div class="day-section">
+      <h3 class="day-heading">${escapeHtml(day)}</h3>
+      <div class="day-slots">
+        ${times.map((time) => {
+          const status = myAvailability.get(time.id) || 'unavailable';
+          const startTime = new Date(time.starts_at).toLocaleTimeString('en-NZ', {
+            hour: 'numeric', minute: '2-digit', hour12: true,
+          });
+          return `
+            <div class="time-choice">
+              <div class="time-inner">
+                <span class="time-title">${escapeHtml(startTime)}</span>
+                <div class="availability-toggle" role="radiogroup" aria-label="${escapeHtml(time.label)}">
+                  <label>
+                    <input type="radio" name="availability-${escapeHtml(time.id)}" value="available" ${status === 'available' ? 'checked' : ''}>
+                    <span>Available</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="availability-${escapeHtml(time.id)}" value="unavailable" ${status === 'unavailable' ? 'checked' : ''}>
+                    <span>Unavailable</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
-    `;
-  }).join('');
+    </div>
+  `).join('');
 
   updateSelectedTimeCount();
 }
@@ -354,7 +368,7 @@ function renderStatusCards() {
     const counts = availabilityCountsFromMap(myAvailability);
     savedCard.innerHTML = `
       <h2>Saved</h2>
-      <div>${escapeHtml(group?.name || 'Group not found')} with ${counts.available} available and ${counts.if_needed} if needed.</div>
+      <div>${escapeHtml(group?.name || 'Group not found')} · ${counts.available} available.</div>
       <div class="meta-line">Updated ${new Date(myRespondent.updated_at).toLocaleString('en-NZ')}</div>
     `;
   }
@@ -381,7 +395,7 @@ function renderStatusCards() {
 
   $('#status-copy').textContent = myRespondent
     ? 'You can update your availability while responses are open.'
-    : 'Choose your group, then mark each time as available, if needed, or unavailable.';
+    : 'Choose your group, then mark each time as available or unavailable.';
 
   $('#cutoff-copy').textContent = responseCutoff()
     ? `Responses close ${formatCutoff()}.`
@@ -416,23 +430,13 @@ function selectedAvailabilityFromForm() {
 }
 
 function updateSelectedTimeCount() {
-  const counts = availabilityCountsFromResponses(selectedAvailabilityFromForm());
-  $('#time-count').textContent = counts.available || counts.if_needed
-    ? `${counts.available} available, ${counts.if_needed} if needed`
-    : 'All marked unavailable';
-}
-
-function availabilityCountsFromResponses(responses) {
-  return responses.reduce((counts, item) => {
-    counts[item.status] = (counts[item.status] || 0) + 1;
-    return counts;
-  }, { available: 0, if_needed: 0 });
+  const count = selectedAvailabilityFromForm().filter((i) => i.status === 'available').length;
+  $('#time-count').textContent = count > 0 ? `${count} available` : 'All marked unavailable';
 }
 
 function availabilityCountsFromMap(availabilityMap) {
-  return availabilityCountsFromResponses(
-    [...availabilityMap.entries()].map(([time_option_id, status]) => ({ time_option_id, status })),
-  );
+  const available = [...availabilityMap.values()].filter((s) => s === 'available').length;
+  return { available };
 }
 
 async function saveAvailability(event) {
