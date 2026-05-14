@@ -7,9 +7,9 @@ const SB = createClient(
 );
 
 const APP = {
-  title: 'Focus Group Scheduler',
-  organisationName: 'Your organisation',
-  emailDomain: '',
+  title: 'Dio Focus Group Scheduler',
+  organisationName: 'Diocesan School for Girls',
+  emailDomain: 'diocesan.school.nz',
   defaultLocation: 'To be confirmed',
   ...(window.APP_CONFIG || {}),
 };
@@ -569,7 +569,7 @@ async function saveAvailability(event) {
 function clearTimes() {
   timeOptions.forEach((time) => {
     const input = form.querySelector(`input[name="availability-${time.id}"][value="unavailable"]`);
-    if (input) input.checked = true;
+    if (input && !input.closest('.time-choice--past')) input.checked = true;
   });
   updateSelectedTimeCount();
 }
