@@ -3,15 +3,40 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Focus Group Scheduler - Admin</title>
+<title>Dio Focus Group Scheduler — Admin</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='14' fill='%231d3b6d'/%3E%3Ctext x='50' y='66' text-anchor='middle' font-family='Arial,sans-serif' font-size='56' font-weight='700' fill='white'%3EF%3C/text%3E%3C/svg%3E">
+<style>
+.bar-cell { display: flex; align-items: center; gap: 8px; }
+.bar-track { width: 80px; height: 8px; background: var(--line); border-radius: 4px; flex-shrink: 0; overflow: hidden; }
+.bar-fill { height: 8px; background: var(--green); border-radius: 4px; transition: width 0.2s; }
+.slot-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.slot-table th, .slot-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.slot-table th { background: var(--brand); color: #fff; font-weight: 650; }
+.slot-table tr:last-child td { border-bottom: 0; }
+.slot-table tr:nth-child(even) td { background: #fafbfd; }
+.slot-final-row td { background: var(--green-soft) !important; }
+.slot-actions { white-space: nowrap; text-align: right; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { background: var(--brand-dark); }
+th.sort-active { background: var(--brand-dark); }
+details.panel > summary { display: block; list-style: none; cursor: pointer; }
+details.panel > summary::-webkit-details-marker { display: none; }
+.extra-attendees-panel { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.extra-attendees-panel h3 { margin: 0 0 6px; font-size: 14px; font-weight: 650; }
+.extras-list { list-style: none; margin: 6px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.extras-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+.extras-list .extra-info { flex: 1; }
+.add-extra-form { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.add-extra-form select { flex: 1; min-width: 220px; }
+.group-detail-meta { margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+</style>
 </head>
 <body>
 <header class="topbar">
-  <h1>Focus Group Scheduler - Admin</h1>
+  <h1 id="app-title">Dio Focus Group Scheduler — Admin</h1>
   <div class="topbar-actions">
-    <a href="/">Availability view</a>
+    <a href="/">Respondent view</a>
     <span id="admin-email"></span>
     <button id="signout-btn" type="button">Sign out</button>
   </div>
@@ -27,26 +52,37 @@
   <section id="admin-content" class="hidden">
     <div id="summary" class="summary"></div>
 
-    <section class="panel">
+    <section class="panel" style="margin-top:18px">
       <div class="panel-header">
-        <h2>Responses</h2>
-        <div class="toolbar">
-          <input id="search" type="search" placeholder="Search name, email, or group">
-          <button id="refresh-btn" class="secondary" type="button">Refresh</button>
-          <button id="export-responses-btn" class="secondary" type="button">Export responses CSV</button>
-        </div>
+        <h2>Timeslot popularity</h2>
+        <span class="meta-line">Total available across all groups — most popular first</span>
       </div>
-      <div class="panel-body">
-        <div id="group-results" class="admin-grid"></div>
-      </div>
+      <div id="timeslot-overview" class="panel-body" style="padding:0"></div>
     </section>
 
     <section class="panel" style="margin-top:18px">
       <div class="panel-header">
-        <h2>Respondents</h2>
+        <h2>Group scheduler</h2>
+        <div class="toolbar">
+          <select id="group-select"></select>
+          <button id="refresh-btn" class="secondary" type="button">Refresh</button>
+          <button id="export-responses-btn" class="secondary" type="button">Export CSV</button>
+        </div>
       </div>
-      <div id="respondent-table" class="panel-body"></div>
+      <div id="group-detail" class="panel-body"></div>
     </section>
+
+    <details class="panel" style="margin-top:18px" id="respondents-details">
+      <summary>
+        <div class="panel-header">
+          <h2>Respondents <span id="respondents-count-label" class="meta-line" style="font-weight:400"></span></h2>
+          <div class="toolbar">
+            <input id="search" type="search" placeholder="Search name, email, or group">
+          </div>
+        </div>
+      </summary>
+      <div id="respondent-table" class="panel-body" style="padding:0"></div>
+    </details>
   </section>
 </main>
 
