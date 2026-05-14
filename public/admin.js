@@ -190,10 +190,35 @@ function groupById(groupId) {
 
 function render() {
   renderSummary();
+  renderSidebar();
   renderTimeslotOverview();
   renderGroupSelector();
   renderGroupDetail(selectedGroupId);
   renderRespondents();
+}
+
+function renderSidebar() {
+  const sidebarGroupsEl = $('#sidebar-groups');
+  if (!sidebarGroupsEl) return;
+  const groups = groupModels();
+  sidebarGroupsEl.innerHTML = groups.map((g) => {
+    const finalised = !!g.final_time_option_id;
+    const active = g.id === selectedGroupId;
+    const cls = ['sidebar-link', finalised ? 'sidebar-link--finalised' : '', active ? 'sidebar-link--active' : ''].filter(Boolean).join(' ');
+    return `<button class="${cls}" data-group-id="${escapeHtml(g.id)}">${finalised ? '✓' : '○'} ${escapeHtml(g.name)}</button>`;
+  }).join('');
+  sidebarGroupsEl.querySelectorAll('[data-group-id]').forEach((btn) => {
+    btn.addEventListener('click', () => selectGroup(btn.dataset.groupId));
+  });
+}
+
+function selectGroup(groupId) {
+  selectedGroupId = groupId;
+  const sel = $('#group-select');
+  if (sel) sel.value = groupId;
+  renderGroupDetail(groupId);
+  renderSidebar();
+  document.getElementById('section-groups')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderSummary() {
@@ -241,12 +266,7 @@ function renderSummary() {
   `;
 
   summaryEl.querySelectorAll('.readiness-card').forEach((card) => {
-    const activate = () => {
-      selectedGroupId = card.dataset.groupId;
-      $('#group-select').value = selectedGroupId;
-      renderGroupDetail(selectedGroupId);
-      $('#group-select').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
+    const activate = () => selectGroup(card.dataset.groupId);
     card.addEventListener('click', activate);
     card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') activate(); });
   });
@@ -798,6 +818,13 @@ async function main() {
   $('#group-select').addEventListener('change', (e) => {
     selectedGroupId = e.target.value;
     renderGroupDetail(selectedGroupId);
+    renderSidebar();
+  });
+
+  $('#admin-sidebar').querySelectorAll('[data-scroll]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.getElementById(btn.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   });
 
   try {
