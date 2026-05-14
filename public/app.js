@@ -455,7 +455,6 @@ function renderStatusCards() {
     });
   }
 
-  const finalTime = selectedFinalTime(group);
   $('#status-copy').innerHTML = finalTime
     ? 'Your session has been confirmed — your availability is now locked. We\'ll be in touch with details by email.'
     : myRespondent
