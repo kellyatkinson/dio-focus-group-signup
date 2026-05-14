@@ -37,6 +37,7 @@ let settings = {};
 let myRespondent = null;
 let myAvailability = new Map();
 let timeSlotStats = new Map();
+let groupResponseCounts = new Map();
 let saveInFlight = false;
 
 function escapeHtml(value) {
@@ -251,6 +252,18 @@ async function loadPublicData() {
 
   groups = groupsR.data || [];
   timeOptions = timeR.data || [];
+}
+
+async function loadGroupResponseCounts() {
+  const { data, error } = await SB.from('respondents').select('group_id');
+  if (error) {
+    console.warn('Could not load group response counts', error);
+    return;
+  }
+  groupResponseCounts = new Map();
+  for (const row of data || []) {
+    groupResponseCounts.set(row.group_id, (groupResponseCounts.get(row.group_id) || 0) + 1);
+  }
 }
 
 async function loadTimeSlotStats() {
@@ -468,12 +481,34 @@ function renderFormState() {
   clearBtn.disabled = disabled;
 }
 
+function renderGroupCounts() {
+  const el = $('#group-counts');
+  if (!el) return;
+  if (groupResponseCounts.size === 0) { el.innerHTML = ''; return; }
+
+  const total = [...groupResponseCounts.values()].reduce((a, b) => a + b, 0);
+  const rows = groups
+    .filter((g) => groupResponseCounts.has(g.id))
+    .map((g) => `
+      <div class="group-count-row">
+        <span class="group-count-name">${escapeHtml(g.name)}</span>
+        <span class="group-count-badge">${groupResponseCounts.get(g.id)}</span>
+      </div>
+    `).join('');
+
+  el.innerHTML = `
+    <p class="group-counts-heading">${total} response${total !== 1 ? 's' : ''} so far</p>
+    <div class="group-counts">${rows}</div>
+  `;
+}
+
 function render() {
   renderStaticText();
   renderUserBar();
   renderGroups();
   renderTimeOptions();
   renderStatusCards();
+  renderGroupCounts();
   renderFormState();
 }
 
@@ -518,7 +553,7 @@ async function saveAvailability(event) {
     if (error) throw error;
     if (!data?.ok) throw new Error(data?.error || 'save_failed');
 
-    await Promise.all([loadMyData(), loadTimeSlotStats()]);
+    await Promise.all([loadMyData(), loadTimeSlotStats(), loadGroupResponseCounts()]);
     render();
     toast('Availability saved.', 'success');
   } catch (error) {
@@ -581,7 +616,7 @@ async function main() {
     }
 
     await Promise.all([loadPublicData(), loadMyData()]);
-    await loadTimeSlotStats();
+    await Promise.all([loadTimeSlotStats(), loadGroupResponseCounts()]);
     loadingEl.classList.add('hidden');
     appView.classList.remove('hidden');
     render();
