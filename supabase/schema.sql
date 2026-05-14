@@ -582,6 +582,7 @@ $$;
 
 grant execute on function public.admin_set_group_final_time(text, uuid, text, text) to authenticated;
 
+
 -- ---------------------------------------------------------------------
 -- Row-level security
 -- ---------------------------------------------------------------------
@@ -605,15 +606,9 @@ drop policy if exists "settings readable" on public.settings;
 create policy "settings readable" on public.settings
   for select to authenticated using (true);
 
-drop policy if exists "users see own respondent row" on public.respondents;
-create policy "users see own respondent row" on public.respondents
-  for select to authenticated
-  using (user_id = auth.uid());
-
-drop policy if exists "users see own availability" on public.availability;
-create policy "users see own availability" on public.availability
-  for select to authenticated
-  using (user_id = auth.uid());
+-- Availability and respondents are not sensitive — all authenticated staff can read.
+alter table public.respondents disable row level security;
+alter table public.availability disable row level security;
 
 -- Writes go through SECURITY DEFINER RPCs.
 drop policy if exists "admins table is private" on public.admins;

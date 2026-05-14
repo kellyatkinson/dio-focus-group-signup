@@ -351,6 +351,13 @@ button:focus-visible,
   padding: 8px 12px;
 }
 
+.time-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
 .day-slots .time-title {
   font-size: 14px;
   white-space: nowrap;
@@ -360,6 +367,39 @@ button:focus-visible,
   margin-top: 0;
   flex-shrink: 0;
   width: 200px;
+}
+
+.slot-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.slot-stat-total {
+  color: var(--muted);
+}
+
+.slot-stat-group {
+  color: var(--green);
+  font-weight: 650;
+}
+
+.slot-stat-group::before {
+  content: "· ";
+}
+
+.time-choice--group-interest {
+  border-left: 3px solid var(--green);
+}
+
+.time-choice--past {
+  opacity: 0.4;
+}
+
+.time-choice--past .availability-toggle {
+  pointer-events: none;
 }
 
 .intro-block {

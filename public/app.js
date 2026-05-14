@@ -36,6 +36,7 @@ let timeOptions = [];
 let settings = {};
 let myRespondent = null;
 let myAvailability = new Map();
+let timeSlotStats = new Map();
 let saveInFlight = false;
 
 function escapeHtml(value) {
@@ -252,6 +253,36 @@ async function loadPublicData() {
   timeOptions = timeR.data || [];
 }
 
+async function loadTimeSlotStats() {
+  const groupId = myRespondent?.group_id || null;
+
+  const { data, error } = await SB.from('availability')
+    .select('time_option_id, status, respondents(group_id)')
+    .eq('status', 'available');
+
+  if (error) {
+    console.warn('Could not load time slot stats', error);
+    return;
+  }
+
+  const totals = new Map();
+  const inGroup = new Map();
+  for (const row of data || []) {
+    const tid = row.time_option_id;
+    totals.set(tid, (totals.get(tid) || 0) + 1);
+    if (groupId && row.respondents?.group_id === groupId) {
+      inGroup.set(tid, (inGroup.get(tid) || 0) + 1);
+    }
+  }
+
+  timeSlotStats = new Map(
+    [...totals.keys()].map((tid) => [tid, {
+      total: totals.get(tid) || 0,
+      inGroup: inGroup.get(tid) || 0,
+    }]),
+  );
+}
+
 async function loadMyData() {
   const [respondentR, availabilityR] = await Promise.all([
     SB.from('respondents').select('*').maybeSingle(),
@@ -295,6 +326,15 @@ function renderGroups() {
       </label>
     `;
   }).join('');
+
+  groupGrid.querySelectorAll('input[name="group-id"]').forEach((input) => {
+    input.addEventListener('mousedown', function () {
+      this.dataset.wasChecked = this.checked ? 'true' : '';
+    });
+    input.addEventListener('click', function () {
+      if (this.dataset.wasChecked === 'true') this.checked = false;
+    });
+  });
 }
 
 function renderTimeOptions() {
@@ -313,26 +353,46 @@ function renderTimeOptions() {
     byDay.get(dayKey).push(time);
   }
 
+  const cutoff = new Date(Date.now() + 30 * 60 * 1000);
+
   timeGrid.innerHTML = Array.from(byDay.entries()).map(([day, times]) => `
     <div class="day-section">
       <h3 class="day-heading">${escapeHtml(day)}</h3>
       <div class="day-slots">
         ${times.map((time) => {
+          const isPast = new Date(time.starts_at) <= cutoff;
           const status = myAvailability.get(time.id) || 'unavailable';
           const startTime = new Date(time.starts_at).toLocaleTimeString('en-NZ', {
             hour: 'numeric', minute: '2-digit', hour12: true,
           });
+          const stats = timeSlotStats.get(time.id);
+          const hasGroupInterest = stats?.inGroup > 0;
+
+          let statsHtml = '';
+          if (stats) {
+            const groupPart = myRespondent?.group_id && stats.inGroup > 0
+              ? `<span class="slot-stat-group">${stats.inGroup} from your group</span>`
+              : '';
+            statsHtml = `<div class="slot-stats">
+              <span class="slot-stat-total">${stats.total} available</span>
+              ${groupPart}
+            </div>`;
+          }
+
           return `
-            <div class="time-choice">
+            <div class="time-choice${hasGroupInterest ? ' time-choice--group-interest' : ''}${isPast ? ' time-choice--past' : ''}">
               <div class="time-inner">
-                <span class="time-title">${escapeHtml(startTime)}</span>
+                <div class="time-left">
+                  <span class="time-title">${escapeHtml(startTime)}</span>
+                  ${statsHtml}
+                </div>
                 <div class="availability-toggle" role="radiogroup" aria-label="${escapeHtml(time.label)}">
                   <label>
-                    <input type="radio" name="availability-${escapeHtml(time.id)}" value="available" ${status === 'available' ? 'checked' : ''}>
+                    <input type="radio" name="availability-${escapeHtml(time.id)}" value="available" ${status === 'available' ? 'checked' : ''} ${isPast ? 'disabled' : ''}>
                     <span>Available</span>
                   </label>
                   <label>
-                    <input type="radio" name="availability-${escapeHtml(time.id)}" value="unavailable" ${status === 'unavailable' ? 'checked' : ''}>
+                    <input type="radio" name="availability-${escapeHtml(time.id)}" value="unavailable" ${status === 'unavailable' ? 'checked' : ''} ${isPast ? 'disabled' : ''}>
                     <span>Unavailable</span>
                   </label>
                 </div>
@@ -397,9 +457,6 @@ function renderStatusCards() {
     ? 'You can update your availability while responses are open.'
     : 'Choose your group, then mark each time as available or unavailable.';
 
-  $('#cutoff-copy').textContent = responseCutoff()
-    ? `Responses close ${formatCutoff()}.`
-    : '';
 }
 
 function renderFormState() {
@@ -461,7 +518,7 @@ async function saveAvailability(event) {
     if (error) throw error;
     if (!data?.ok) throw new Error(data?.error || 'save_failed');
 
-    await loadMyData();
+    await Promise.all([loadMyData(), loadTimeSlotStats()]);
     render();
     toast('Availability saved.', 'success');
   } catch (error) {
@@ -524,6 +581,7 @@ async function main() {
     }
 
     await Promise.all([loadPublicData(), loadMyData()]);
+    await loadTimeSlotStats();
     loadingEl.classList.add('hidden');
     appView.classList.remove('hidden');
     render();
