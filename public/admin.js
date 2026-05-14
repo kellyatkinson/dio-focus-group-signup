@@ -198,14 +198,58 @@ function render() {
 
 function renderSummary() {
   const groups = groupModels();
-  const finalisedCount = groups.filter((g) => g.final_time_option_id).length;
-  const totalAvailable = responses.reduce((n, row) => n + (row.available_time_option_ids?.length || 0), 0);
+
+  const cards = groups.map((group) => {
+    const total = Number(group.total || 0);
+    const isFinalised = !!group.final_time_option_id;
+    const finalTime = finalTimeForGroup(group);
+
+    const bestTime = isFinalised
+      ? finalTime
+      : group.times.reduce((best, t) => {
+          return Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best;
+        }, null);
+
+    const bestCount = Number(bestTime?.available_count || 0);
+    const pct = total > 0 ? Math.round((bestCount / total) * 100) : 0;
+    const slotLabel = bestTime?.label || '—';
+
+    const barFill = `<div class="bar-cell" style="margin:5px 0 2px">
+      <div class="bar-track" style="width:100%;flex:1"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <span class="readiness-count">${bestCount}/${total}</span>
+    </div>`;
+
+    const status = isFinalised
+      ? `<div class="readiness-status"><span class="badge good">Finalised</span></div>`
+      : `<div class="readiness-status" style="color:var(--muted);font-size:11px">Pending</div>`;
+
+    return `
+      <div class="readiness-card${isFinalised ? ' readiness-card--finalised' : ''}" data-group-id="${escapeHtml(group.id)}" role="button" tabindex="0">
+        <div class="readiness-name">${escapeHtml(group.name)}</div>
+        ${barFill}
+        <div class="readiness-slot">${escapeHtml(slotLabel)}</div>
+        ${status}
+      </div>`;
+  }).join('');
+
   summaryEl.innerHTML = `
-    <div class="stat"><span class="stat-label">Respondents</span><span class="stat-value">${responses.length}</span></div>
-    <div class="stat"><span class="stat-label">Groups</span><span class="stat-value">${groups.length}</span></div>
-    <div class="stat"><span class="stat-label">Available slots selected</span><span class="stat-value">${totalAvailable}</span></div>
-    <div class="stat"><span class="stat-label">Scheduled groups</span><span class="stat-value">${finalisedCount}</span></div>
+    <div class="panel-header">
+      <h2>Group readiness</h2>
+      <span class="meta-line">${responses.length} respondent${responses.length === 1 ? '' : 's'} · ${groups.filter((g) => g.final_time_option_id).length}/${groups.length} finalised</span>
+    </div>
+    <div class="readiness-grid">${cards}</div>
   `;
+
+  summaryEl.querySelectorAll('.readiness-card').forEach((card) => {
+    const activate = () => {
+      selectedGroupId = card.dataset.groupId;
+      $('#group-select').value = selectedGroupId;
+      renderGroupDetail(selectedGroupId);
+      $('#group-select').closest('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') activate(); });
+  });
 }
 
 function renderTimeslotOverview() {
@@ -328,6 +372,7 @@ function renderGroupDetail(groupId) {
       <div><strong>Final:</strong> ${escapeHtml(formatDateRange(finalTime.starts_at, finalTime.ends_at))}</div>
       <div class="subtle">${escapeHtml(location)}${group.final_note ? ` — ${escapeHtml(group.final_note)}` : ''}</div>
       <div class="actions" style="margin-top:10px">
+        <button class="secondary copy-names" type="button" data-group-id="${escapeHtml(group.id)}">Copy names</button>
         <button class="secondary copy-emails" type="button" data-group-id="${escapeHtml(group.id)}">Copy emails</button>
         <button class="secondary copy-message" type="button" data-group-id="${escapeHtml(group.id)}">Copy message</button>
         <button class="secondary download-ics" type="button" data-group-id="${escapeHtml(group.id)}">Download .ics</button>
@@ -424,6 +469,9 @@ function renderExtraAttendeesPanel(group, primaryRespondents) {
 function wireGroupDetailActions(group) {
   groupDetailEl.querySelectorAll('.set-final').forEach((btn) => {
     btn.addEventListener('click', () => setFinalTime(btn.dataset.groupId, btn.dataset.timeId));
+  });
+  groupDetailEl.querySelectorAll('.copy-names').forEach((btn) => {
+    btn.addEventListener('click', () => copyGroupNames(btn.dataset.groupId));
   });
   groupDetailEl.querySelectorAll('.copy-emails').forEach((btn) => {
     btn.addEventListener('click', () => copyGroupEmails(btn.dataset.groupId));
@@ -593,6 +641,11 @@ function buildMessage(group) {
     '',
     'Please add the attached calendar file to your calendar.',
   ].filter((line) => line !== null).join('\n');
+}
+
+function copyGroupNames(groupId) {
+  const names = responsesForGroup(groupId).map((row) => row.user_name || row.user_email).join('; ');
+  copyText(names, 'Names copied.');
 }
 
 function copyGroupEmails(groupId) {
