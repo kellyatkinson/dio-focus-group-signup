@@ -792,6 +792,7 @@ async function main() {
   $('#export-responses-btn').addEventListener('click', exportResponsesCsv);
   $('#search').addEventListener('input', (e) => {
     searchTerm = e.target.value.trim();
+    if (searchTerm) $('#respondents-details').open = true;
     renderRespondents();
   });
   $('#group-select').addEventListener('change', (e) => {
