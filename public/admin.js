@@ -465,6 +465,7 @@ function renderGroupDetail(groupId) {
   ` : '';
 
   const extraAttendeesBlock = finalTime ? renderExtraAttendeesPanel(group, primaryRespondents) : '';
+  const conflictsBlock = finalTime ? renderConflictsPanel(group, finalTime) : '';
 
   groupDetailEl.innerHTML = `
     <div class="group-detail-meta">
@@ -493,10 +494,52 @@ function renderGroupDetail(groupId) {
       </label>
     </div>
     ${finalBlock}
+    ${conflictsBlock}
     ${extraAttendeesBlock}
   `;
 
   wireGroupDetailActions(group);
+}
+
+function renderConflictsPanel(group, finalTime) {
+  const allGroups = groupModels();
+  const overlapping = allGroups
+    .filter((g) => g.id !== group.id)
+    .flatMap((g) => {
+      const slot = g.times.find((t) => t.id === finalTime.id);
+      const availHere = Number(slot?.available_count || 0);
+      if (availHere === 0) return [];
+      const gTotal = Number(g.total || 0);
+      const bestSlot = g.times.reduce((best, t) =>
+        Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null);
+      const bestAvail = Number(bestSlot?.available_count || 0);
+      const hasBetter = bestSlot && bestSlot.id !== finalTime.id && bestAvail > availHere;
+      const alreadyFinalised = !!g.final_time_option_id;
+      return [{ g, availHere, gTotal, bestSlot, bestAvail, hasBetter, alreadyFinalised }];
+    });
+
+  if (overlapping.length === 0) return '';
+
+  const rows = overlapping.map(({ g, availHere, gTotal, bestSlot, bestAvail, hasBetter, alreadyFinalised }) => {
+    const statusBadge = alreadyFinalised
+      ? `<span class="badge neutral">Already finalised</span>`
+      : hasBetter
+        ? `<span class="conflict-better">Better option: ${escapeHtml(bestSlot.label)} (${bestAvail}/${gTotal})</span>`
+        : `<span class="conflict-clash">No better slot — this is their best</span>`;
+    return `
+      <div class="conflict-row">
+        <span class="conflict-name">${escapeHtml(g.name)}</span>
+        <span class="conflict-avail">${availHere}/${gTotal} available here</span>
+        ${statusBadge}
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="conflicts-panel">
+      <h3>Other groups available at this time</h3>
+      <p class="subtle" style="margin:0 0 8px">Groups with people available at ${escapeHtml(finalTime.label)} — check whether they have a better alternative before locking this slot.</p>
+      ${rows}
+    </div>`;
 }
 
 function renderExtraAttendeesPanel(group, primaryRespondents) {

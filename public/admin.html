@@ -67,6 +67,14 @@ details.panel > summary::-webkit-details-marker { display: none; }
 .slot-names { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; }
 .slot-names-yes { font-size: 11px; color: var(--green); }
 .slot-names-no { font-size: 11px; color: var(--muted); }
+.conflicts-panel { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.conflicts-panel h3 { margin: 0 0 4px; font-size: 14px; font-weight: 650; }
+.conflict-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.conflict-row:last-child { border-bottom: none; }
+.conflict-name { font-weight: 600; min-width: 160px; }
+.conflict-avail { color: var(--muted); white-space: nowrap; }
+.conflict-better { color: var(--green); font-size: 12px; }
+.conflict-clash { color: #c0392b; font-size: 12px; font-weight: 600; }
 </style>
 </head>
 <body>
