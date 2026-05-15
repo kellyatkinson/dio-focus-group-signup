@@ -257,12 +257,49 @@ function renderSummary() {
       </div>`;
   }).join('');
 
+  // Scheduling summary — coverage if best slot picked per group
+  let totalBestAvail = 0;
+  let totalRespondents = 0;
+  const byDay = new Map(); // 'Mon 19 May' → [{groupName, available, total, slotLabel}]
+
+  for (const group of groups) {
+    const gTotal = Number(group.total || 0);
+    totalRespondents += gTotal;
+    const isFinalised = !!group.final_time_option_id;
+    const bestTime = isFinalised
+      ? finalTimeForGroup(group)
+      : group.times.reduce((best, t) => Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null);
+    if (!bestTime) continue;
+    const avail = Number(bestTime.available_count || 0);
+    totalBestAvail += avail;
+    const dayLabel = new Date(bestTime.starts_at).toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' });
+    if (!byDay.has(dayLabel)) byDay.set(dayLabel, []);
+    byDay.get(dayLabel).push({ groupName: group.name, available: avail, total: gTotal, slotLabel: bestTime.label, finalised: isFinalised });
+  }
+
+  const leftOutTotal = totalRespondents - totalBestAvail;
+  const dayRows = [...byDay.entries()].map(([day, items]) => {
+    const groupList = items.map((i) => `<span class="sched-group${i.finalised ? ' sched-group--final' : ''}">${escapeHtml(i.groupName)} <span class="subtle">${i.available}/${i.total}</span></span>`).join('');
+    return `<div class="sched-day"><span class="sched-day-label">${escapeHtml(day)}</span><div class="sched-groups">${groupList}</div></div>`;
+  }).join('');
+
+  const schedSummary = totalRespondents > 0 ? `
+    <div class="sched-summary">
+      <div class="sched-summary-stat">
+        Best-slot coverage: <strong>${totalBestAvail}/${totalRespondents}</strong> people
+        ${leftOutTotal > 0 ? `· <span style="color:var(--red,#c0392b)">${leftOutTotal} left out across all groups</span>` : '· <span style="color:var(--green)">everyone covered</span>'}
+      </div>
+      <div class="sched-days">${dayRows}</div>
+    </div>
+  ` : '';
+
   summaryEl.innerHTML = `
     <div class="panel-header">
       <h2>Group readiness</h2>
       <span class="meta-line">${responses.length} respondent${responses.length === 1 ? '' : 's'} · ${groups.filter((g) => g.final_time_option_id).length}/${groups.length} finalised</span>
     </div>
     <div class="readiness-grid">${cards}</div>
+    ${schedSummary}
   `;
 
   summaryEl.querySelectorAll('.readiness-card').forEach((card) => {
@@ -362,10 +399,13 @@ function renderGroupDetail(groupId) {
 
   const timesHtml = sortedTimes.map((time, index) => {
     const available = Number(time.available_count || 0);
-    const unavailable = total - available;
+    const leftOut = total > 0 ? total - available : 0;
     const pct = maxAvail > 0 ? Math.round((available / maxAvail) * 100) : 0;
     const isFinal = time.id === group.final_time_option_id;
     const isBest = index === 0 && available > 0;
+    const coverageText = total > 0
+      ? `${available}/${total}${leftOut > 0 ? ` · <span style="color:var(--red,#c0392b)">${leftOut} left out</span>` : ' · <span style="color:var(--green)">all covered</span>'}`
+      : `${available} available`;
     return `
       <tr class="${isFinal ? 'slot-final-row' : ''}">
         <td>${escapeHtml(time.label)}</td>
@@ -373,7 +413,7 @@ function renderGroupDetail(groupId) {
         <td>
           <div class="bar-cell">
             <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-            <span class="subtle">${available} yes${unavailable > 0 ? `, ${unavailable} no` : ''}</span>
+            <span class="subtle">${coverageText}</span>
           </div>
         </td>
         <td class="slot-actions">
