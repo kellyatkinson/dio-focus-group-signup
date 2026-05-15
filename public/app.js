@@ -38,6 +38,7 @@ let myRespondent = null;
 let myAvailability = new Map();
 let timeSlotStats = new Map();
 let groupResponseCounts = new Map();
+let groupFinalSessions = new Map(); // group_id → [{time_option_id, location, note}]
 let saveInFlight = false;
 
 function escapeHtml(value) {
@@ -107,9 +108,16 @@ function selectedGroup() {
   return groups.find((group) => group.id === myRespondent?.group_id) || null;
 }
 
+function selectedFinalTimes(group) {
+  if (!group) return [];
+  return (groupFinalSessions.get(group.id) || []).map((s) => {
+    const time = timeOptions.find((t) => t.id === s.time_option_id);
+    return time ? { ...time, final_location: s.location, final_note: s.note } : null;
+  }).filter(Boolean);
+}
+
 function selectedFinalTime(group) {
-  if (!group?.final_time_option_id) return null;
-  return timeOptions.find((time) => time.id === group.final_time_option_id) || null;
+  return selectedFinalTimes(group)[0] || null;
 }
 
 function userDisplayName() {
@@ -231,9 +239,10 @@ async function loadSettings() {
 }
 
 async function loadPublicData() {
-  const [groupsR, timeR] = await Promise.all([
+  const [groupsR, timeR, finalR] = await Promise.all([
     SB.from('focus_groups').select('*').order('display_order'),
     SB.from('time_options').select('*').eq('active', true).order('starts_at'),
+    SB.from('group_final_sessions').select('group_id, time_option_id, location, note'),
   ]);
 
   if (groupsR.error) throw groupsR.error;
@@ -241,6 +250,12 @@ async function loadPublicData() {
 
   groups = groupsR.data || [];
   timeOptions = timeR.data || [];
+
+  groupFinalSessions = new Map();
+  for (const row of finalR.data || []) {
+    if (!groupFinalSessions.has(row.group_id)) groupFinalSessions.set(row.group_id, []);
+    groupFinalSessions.get(row.group_id).push(row);
+  }
 }
 
 async function loadGroupResponseCounts() {
@@ -435,27 +450,34 @@ function renderStatusCards() {
     `;
   }
 
-  if (group && finalTime) {
-    const location = group.final_location || APP.defaultLocation;
+  const finalTimes = selectedFinalTimes(group);
+  if (group && finalTimes.length > 0) {
     finalCard.classList.remove('hidden');
     finalCard.innerHTML = `
       <h2>Your focus group has been scheduled</h2>
       <div><strong>${escapeHtml(group.name)}</strong></div>
-      <div>${escapeHtml(formatDateRange(finalTime.starts_at, finalTime.ends_at))}</div>
-      <div>${escapeHtml(location)}</div>
-      ${group.final_note ? `<div class="meta-line">${escapeHtml(group.final_note)}</div>` : ''}
-      <div class="actions">
-        <button id="download-final-ics" class="secondary" type="button">Download calendar file</button>
-      </div>
+      ${finalTimes.map((ft, i) => `
+        <div class="final-time-entry" style="${i > 0 ? 'margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.2)' : ''}">
+          <div>${escapeHtml(formatDateRange(ft.starts_at, ft.ends_at))}</div>
+          <div>${escapeHtml(ft.final_location || APP.defaultLocation)}</div>
+          ${ft.final_note ? `<div class="meta-line">${escapeHtml(ft.final_note)}</div>` : ''}
+          <div class="actions" style="margin-top:6px">
+            <button class="secondary download-final-ics" type="button" data-index="${i}">Download calendar file</button>
+          </div>
+        </div>
+      `).join('')}
     `;
-    $('#download-final-ics').addEventListener('click', () => {
-      const ics = buildPersonalIcs(group, finalTime);
-      downloadText(`focus-group-${group.id}.ics`, ics, 'text/calendar;charset=utf-8');
-      toast('Calendar file downloaded.', 'success');
+    finalCard.querySelectorAll('.download-final-ics').forEach((btn) => {
+      const ft = finalTimes[Number(btn.dataset.index)];
+      if (ft) btn.addEventListener('click', () => {
+        const ics = buildPersonalIcs(group, ft);
+        downloadText(`focus-group-${group.id}.ics`, ics, 'text/calendar;charset=utf-8');
+        toast('Calendar file downloaded.', 'success');
+      });
     });
   }
 
-  $('#status-copy').innerHTML = finalTime
+  $('#status-copy').innerHTML = finalTimes.length > 0
     ? 'Your session has been confirmed — your availability is now locked. We\'ll be in touch with details by email.'
     : myRespondent
       ? 'You can update your availability for sessions that haven\'t started yet.'
@@ -464,7 +486,7 @@ function renderStatusCards() {
 }
 
 function renderFormState() {
-  const finalised = !!selectedFinalTime(selectedGroup());
+  const finalised = selectedFinalTimes(selectedGroup()).length > 0;
   const disabled = responsesClosed() || saveInFlight || finalised;
   form.querySelectorAll('input').forEach((input) => {
     if (input.closest('.time-choice--past')) return;
