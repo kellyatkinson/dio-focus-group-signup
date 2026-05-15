@@ -172,6 +172,11 @@ function responsesForGroup(groupId) {
   return [...primary, ...extras];
 }
 
+function firstName(fullName) {
+  if (!fullName) return '?';
+  return fullName.trim().split(/\s+/)[0];
+}
+
 function sortName(row) {
   const name = (row.user_name || '').trim().toLowerCase();
   const email = (row.user_email || '').toLowerCase();
@@ -397,6 +402,8 @@ function renderGroupDetail(groupId) {
   const sortedTimes = [...group.times].sort((a, b) => Number(b.available_count || 0) - Number(a.available_count || 0));
   const maxAvail = sortedTimes.length > 0 ? Number(sortedTimes[0].available_count || 0) : 1;
 
+  const groupResponses = responses.filter((r) => r.group_id === group.id);
+
   const timesHtml = sortedTimes.map((time, index) => {
     const available = Number(time.available_count || 0);
     const leftOut = total > 0 ? total - available : 0;
@@ -406,6 +413,20 @@ function renderGroupDetail(groupId) {
     const coverageText = total > 0
       ? `${available}/${total}${leftOut > 0 ? ` · <span style="color:var(--red,#c0392b)">${leftOut} left out</span>` : ' · <span style="color:var(--green)">all covered</span>'}`
       : `${available} available`;
+
+    const yesNames = groupResponses
+      .filter((r) => r.available_time_option_ids?.includes(time.id))
+      .map((r) => escapeHtml(firstName(r.user_name || r.user_email)));
+    const noNames = groupResponses
+      .filter((r) => !r.available_time_option_ids?.includes(time.id))
+      .map((r) => escapeHtml(firstName(r.user_name || r.user_email)));
+
+    const namesHtml = `
+      <div class="slot-names">
+        ${yesNames.length ? `<span class="slot-names-yes">✓ ${yesNames.join(', ')}</span>` : ''}
+        ${noNames.length ? `<span class="slot-names-no">✗ ${noNames.join(', ')}</span>` : ''}
+      </div>`;
+
     return `
       <tr class="${isFinal ? 'slot-final-row' : ''}">
         <td>${escapeHtml(time.label)}</td>
@@ -415,6 +436,7 @@ function renderGroupDetail(groupId) {
             <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
             <span class="subtle">${coverageText}</span>
           </div>
+          ${namesHtml}
         </td>
         <td class="slot-actions">
           ${isBest ? '<span class="badge good">Best</span>' : ''}
