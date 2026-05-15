@@ -132,10 +132,7 @@ function groupModels() {
         name: row.group_name,
         description: row.group_description,
         total: row.total_in_group,
-        final_time_option_id: row.final_time_option_id,
-        final_location: row.final_location,
-        final_note: row.final_note,
-        finalised_at: row.finalised_at,
+        final_sessions_count: Number(row.final_sessions_count || 0),
         times: [],
       });
     }
@@ -146,9 +143,16 @@ function groupModels() {
       ends_at: row.ends_at,
       available_count: row.available_count,
       unavailable_count: row.unavailable_count,
+      is_final: row.is_final || false,
+      final_location: row.final_session_location || null,
+      final_note: row.final_session_note || null,
     });
   }
   return [...byGroup.values()];
+}
+
+function finalTimesForGroup(group) {
+  return (group?.times || []).filter((t) => t.is_final);
 }
 
 function responsesForGroup(groupId) {
@@ -184,7 +188,7 @@ function sortName(row) {
 }
 
 function finalTimeForGroup(group) {
-  return group.times.find((t) => t.id === group.final_time_option_id) || null;
+  return (group?.times || []).find((t) => t.is_final) || null;
 }
 
 function groupById(groupId) {
@@ -207,7 +211,7 @@ function renderSidebar() {
   if (!sidebarGroupsEl) return;
   const groups = groupModels();
   sidebarGroupsEl.innerHTML = groups.map((g) => {
-    const finalised = !!g.final_time_option_id;
+    const finalised = g.final_sessions_count > 0;
     const active = g.id === selectedGroupId;
     const cls = ['sidebar-link', finalised ? 'sidebar-link--finalised' : '', active ? 'sidebar-link--active' : ''].filter(Boolean).join(' ');
     return `<button class="${cls}" data-group-id="${escapeHtml(g.id)}">${finalised ? '✓' : '○'} ${escapeHtml(g.name)}</button>`;
@@ -231,11 +235,12 @@ function renderSummary() {
 
   const cards = groups.map((group) => {
     const total = Number(group.total || 0);
-    const isFinalised = !!group.final_time_option_id;
+    const isFinalised = group.final_sessions_count > 0;
     const finalTime = finalTimeForGroup(group);
 
+    const finalTimes = finalTimesForGroup(group);
     const bestTime = isFinalised
-      ? finalTime
+      ? (finalTimes[0] || null)
       : group.times.reduce((best, t) => {
           return Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best;
         }, null);
@@ -270,7 +275,7 @@ function renderSummary() {
   for (const group of groups) {
     const gTotal = Number(group.total || 0);
     totalRespondents += gTotal;
-    const isFinalised = !!group.final_time_option_id;
+    const isFinalised = group.final_sessions_count > 0;
     const bestTime = isFinalised
       ? finalTimeForGroup(group)
       : group.times.reduce((best, t) => Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null);
@@ -301,7 +306,7 @@ function renderSummary() {
   summaryEl.innerHTML = `
     <div class="panel-header">
       <h2>Group readiness</h2>
-      <span class="meta-line">${responses.length} respondent${responses.length === 1 ? '' : 's'} · ${groups.filter((g) => g.final_time_option_id).length}/${groups.length} finalised</span>
+      <span class="meta-line">${responses.length} respondent${responses.length === 1 ? '' : 's'} · ${groups.filter((g) => g.final_sessions_count > 0).length}/${groups.length} finalised</span>
     </div>
     <div class="readiness-grid">${cards}</div>
     ${schedSummary}
@@ -396,8 +401,8 @@ function renderGroupDetail(groupId) {
     .filter((r) => r.group_id === group.id)
     .sort((a, b) => sortName(a).localeCompare(sortName(b)));
   const total = Number(group.total || 0);
-  const finalTime = finalTimeForGroup(group);
-  const location = group.final_location || APP.defaultLocation;
+  const finalTimes = finalTimesForGroup(group);
+  const finalTime = finalTimes[0] || null;
 
   const sortedTimes = [...group.times].sort((a, b) => Number(b.available_count || 0) - Number(a.available_count || 0));
   const maxAvail = sortedTimes.length > 0 ? Number(sortedTimes[0].available_count || 0) : 1;
@@ -408,8 +413,8 @@ function renderGroupDetail(groupId) {
     const available = Number(time.available_count || 0);
     const leftOut = total > 0 ? total - available : 0;
     const pct = maxAvail > 0 ? Math.round((available / maxAvail) * 100) : 0;
-    const isFinal = time.id === group.final_time_option_id;
-    const isBest = index === 0 && available > 0;
+    const isFinal = time.is_final;
+    const isBest = index === 0 && available > 0 && !isFinal;
     const coverageText = total > 0
       ? `${available}/${total}${leftOut > 0 ? ` · <span style="color:var(--red,#c0392b)">${leftOut} left out</span>` : ' · <span style="color:var(--green)">all covered</span>'}`
       : `${available} available`;
@@ -441,18 +446,24 @@ function renderGroupDetail(groupId) {
         <td class="slot-actions">
           ${isBest ? '<span class="badge good">Best</span>' : ''}
           ${isFinal ? '<span class="badge good">Final</span>' : ''}
-          <button class="secondary set-final" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(time.id)}" style="margin-left:6px">
-            ${isFinal ? 'Update' : 'Set as final'}
-          </button>
+          ${isFinal
+            ? `<button class="ghost remove-final" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(time.id)}" style="margin-left:6px">Remove final</button>`
+            : `<button class="secondary set-final" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(time.id)}" style="margin-left:6px">Set as final</button>`
+          }
         </td>
       </tr>
     `;
   }).join('');
 
-  const finalBlock = finalTime ? `
+  const finalBlock = finalTimes.length > 0 ? `
     <div class="notification-tools" style="margin-top:16px">
-      <div><strong>Final:</strong> ${escapeHtml(formatDateRange(finalTime.starts_at, finalTime.ends_at))}</div>
-      <div class="subtle">${escapeHtml(location)}${group.final_note ? ` — ${escapeHtml(group.final_note)}` : ''}</div>
+      <h3 style="margin:0 0 10px;font-size:14px;font-weight:650">Confirmed session${finalTimes.length > 1 ? 's' : ''}</h3>
+      ${finalTimes.map((ft) => `
+        <div class="final-session-entry">
+          <div><strong>${escapeHtml(formatDateRange(ft.starts_at, ft.ends_at))}</strong></div>
+          <div class="subtle">${escapeHtml(ft.final_location || APP.defaultLocation)}${ft.final_note ? ` — ${escapeHtml(ft.final_note)}` : ''}</div>
+        </div>
+      `).join('')}
       <div class="actions" style="margin-top:10px">
         <button class="secondary copy-names" type="button" data-group-id="${escapeHtml(group.id)}">Copy names</button>
         <button class="secondary copy-emails" type="button" data-group-id="${escapeHtml(group.id)}">Copy emails</button>
@@ -464,8 +475,8 @@ function renderGroupDetail(groupId) {
     </div>
   ` : '';
 
-  const extraAttendeesBlock = finalTime ? renderExtraAttendeesPanel(group, primaryRespondents) : '';
-  const conflictsBlock = finalTime ? renderConflictsPanel(group, finalTime) : '';
+  const extraAttendeesBlock = finalTimes.length > 0 ? renderExtraAttendeesPanel(group, primaryRespondents) : '';
+  const conflictsBlock = finalTimes.length > 0 ? renderConflictsPanel(group, finalTimes) : '';
 
   groupDetailEl.innerHTML = `
     <div class="group-detail-meta">
@@ -486,11 +497,11 @@ function renderGroupDetail(groupId) {
     <div class="final-form" style="margin-top:16px">
       <label>
         <span class="meta-line">Location</span>
-        <input type="text" id="location-${escapeHtml(group.id)}" value="${escapeHtml(location)}">
+        <input type="text" id="location-${escapeHtml(group.id)}" value="${escapeHtml(finalTime?.final_location || APP.defaultLocation)}">
       </label>
       <label>
         <span class="meta-line">Note for invite</span>
-        <textarea id="note-${escapeHtml(group.id)}">${escapeHtml(group.final_note || '')}</textarea>
+        <textarea id="note-${escapeHtml(group.id)}">${escapeHtml(finalTime?.final_note || '')}</textarea>
       </label>
     </div>
     ${finalBlock}
@@ -501,44 +512,55 @@ function renderGroupDetail(groupId) {
   wireGroupDetailActions(group);
 }
 
-function renderConflictsPanel(group, finalTime) {
+function renderConflictsPanel(group, finalTimes) {
+  if (!finalTimes.length) return '';
   const allGroups = groupModels();
-  const overlapping = allGroups
-    .filter((g) => g.id !== group.id)
-    .flatMap((g) => {
-      const slot = g.times.find((t) => t.id === finalTime.id);
-      const availHere = Number(slot?.available_count || 0);
-      if (availHere === 0) return [];
-      const gTotal = Number(g.total || 0);
-      const bestSlot = g.times.reduce((best, t) =>
-        Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null);
-      const bestAvail = Number(bestSlot?.available_count || 0);
-      const hasBetter = bestSlot && bestSlot.id !== finalTime.id && bestAvail > availHere;
-      const alreadyFinalised = !!g.final_time_option_id;
-      return [{ g, availHere, gTotal, bestSlot, bestAvail, hasBetter, alreadyFinalised }];
-    });
 
-  if (overlapping.length === 0) return '';
+  const sections = finalTimes.map((finalTime) => {
+    const overlapping = allGroups
+      .filter((g) => g.id !== group.id)
+      .flatMap((g) => {
+        const slot = g.times.find((t) => t.id === finalTime.id);
+        const availHere = Number(slot?.available_count || 0);
+        if (availHere === 0) return [];
+        const gTotal = Number(g.total || 0);
+        const bestSlot = g.times.filter((t) => !t.is_final).reduce((best, t) =>
+          Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null);
+        const bestAvail = Number(bestSlot?.available_count || 0);
+        const hasBetter = bestSlot && bestSlot.id !== finalTime.id && bestAvail > availHere;
+        const alreadyFinalised = g.final_sessions_count > 0;
+        return [{ g, availHere, gTotal, bestSlot, bestAvail, hasBetter, alreadyFinalised }];
+      });
 
-  const rows = overlapping.map(({ g, availHere, gTotal, bestSlot, bestAvail, hasBetter, alreadyFinalised }) => {
-    const statusBadge = alreadyFinalised
-      ? `<span class="badge neutral">Already finalised</span>`
-      : hasBetter
-        ? `<span class="conflict-better">Better option: ${escapeHtml(bestSlot.label)} (${bestAvail}/${gTotal})</span>`
-        : `<span class="conflict-clash">No better slot — this is their best</span>`;
-    return `
-      <div class="conflict-row">
-        <span class="conflict-name">${escapeHtml(g.name)}</span>
-        <span class="conflict-avail">${availHere}/${gTotal} available here</span>
-        ${statusBadge}
-      </div>`;
-  }).join('');
+    if (overlapping.length === 0) return '';
+
+    const rows = overlapping.map(({ g, availHere, gTotal, bestSlot, bestAvail, hasBetter, alreadyFinalised }) => {
+      const statusBadge = alreadyFinalised
+        ? `<span class="badge neutral">Already finalised</span>`
+        : hasBetter
+          ? `<span class="conflict-better">Better option: ${escapeHtml(bestSlot.label)} (${bestAvail}/${gTotal})</span>`
+          : `<span class="conflict-clash">No better slot — this is their best</span>`;
+      return `
+        <div class="conflict-row">
+          <span class="conflict-name">${escapeHtml(g.name)}</span>
+          <span class="conflict-avail">${availHere}/${gTotal} available here</span>
+          ${statusBadge}
+        </div>`;
+    }).join('');
+
+    return `<div style="margin-bottom:12px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:6px">${escapeHtml(finalTime.label)}</div>
+      ${rows}
+    </div>`;
+  }).filter(Boolean).join('');
+
+  if (!sections) return '';
 
   return `
     <div class="conflicts-panel">
-      <h3>Other groups available at this time</h3>
-      <p class="subtle" style="margin:0 0 8px">Groups with people available at ${escapeHtml(finalTime.label)} — check whether they have a better alternative before locking this slot.</p>
-      ${rows}
+      <h3>Other groups available at confirmed times</h3>
+      <p class="subtle" style="margin:0 0 10px">Check whether these groups have a better alternative before locking your choices.</p>
+      ${sections}
     </div>`;
 }
 
@@ -593,7 +615,10 @@ function renderExtraAttendeesPanel(group, primaryRespondents) {
 
 function wireGroupDetailActions(group) {
   groupDetailEl.querySelectorAll('.set-final').forEach((btn) => {
-    btn.addEventListener('click', () => setFinalTime(btn.dataset.groupId, btn.dataset.timeId));
+    btn.addEventListener('click', () => addFinalSession(btn.dataset.groupId, btn.dataset.timeId));
+  });
+  groupDetailEl.querySelectorAll('.remove-final').forEach((btn) => {
+    btn.addEventListener('click', () => removeFinalSession(btn.dataset.groupId, btn.dataset.timeId));
   });
   groupDetailEl.querySelectorAll('.copy-names').forEach((btn) => {
     btn.addEventListener('click', () => copyGroupNames(btn.dataset.groupId));
@@ -699,11 +724,11 @@ function renderRespondents() {
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
-async function setFinalTime(groupId, timeId) {
+async function addFinalSession(groupId, timeId) {
   const location = document.getElementById(`location-${groupId}`)?.value?.trim() || APP.defaultLocation;
   const note = document.getElementById(`note-${groupId}`)?.value?.trim() || '';
   try {
-    const { data, error } = await SB.rpc('admin_set_group_final_time', {
+    const { data, error } = await SB.rpc('admin_add_group_final_session', {
       p_group_id: groupId,
       p_time_option_id: timeId,
       p_location: location,
@@ -712,10 +737,26 @@ async function setFinalTime(groupId, timeId) {
     if (error) throw error;
     if (!data?.ok) throw new Error(data?.error || 'save_failed');
     await loadData();
-    toast('Final time saved.', 'success');
+    toast('Session confirmed.', 'success');
   } catch (error) {
     console.error(error);
-    toast('Could not save the final time.', 'error');
+    toast('Could not confirm the session.', 'error');
+  }
+}
+
+async function removeFinalSession(groupId, timeId) {
+  try {
+    const { data, error } = await SB.rpc('admin_remove_group_final_session', {
+      p_group_id: groupId,
+      p_time_option_id: timeId,
+    });
+    if (error) throw error;
+    if (!data?.ok) throw new Error(data?.error || 'save_failed');
+    await loadData();
+    toast('Session removed.', 'success');
+  } catch (error) {
+    console.error(error);
+    toast('Could not remove the session.', 'error');
   }
 }
 
