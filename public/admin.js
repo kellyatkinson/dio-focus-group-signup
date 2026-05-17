@@ -377,14 +377,19 @@ function renderTimeslotOverview() {
   const totals = new Map();
   for (const row of summaryRows) {
     if (!totals.has(row.time_option_id)) {
-      totals.set(row.time_option_id, { label: row.time_label, starts_at: row.starts_at, total: 0, bestGroup: '', bestCount: 0 });
+      totals.set(row.time_option_id, {
+        label: row.time_label, starts_at: row.starts_at,
+        total: 0,
+        bestPending: '', bestPendingCount: 0, // highest-available unfinalised group
+      });
     }
     const entry = totals.get(row.time_option_id);
     const n = Number(row.available_count || 0);
     entry.total += n;
-    if (n > entry.bestCount) {
-      entry.bestCount = n;
-      entry.bestGroup = row.group_name;
+    const groupFinalised = Number(row.final_sessions_count || 0) > 0;
+    if (!groupFinalised && n > entry.bestPendingCount) {
+      entry.bestPendingCount = n;
+      entry.bestPending = row.group_name;
     }
   }
 
@@ -402,7 +407,7 @@ function renderTimeslotOverview() {
         <tr>
           <th>Time slot</th>
           <th>Total available</th>
-          <th>Most interest from</th>
+          <th>Most interest from <span style="font-weight:400;opacity:0.7">(unfinalised groups only)</span></th>
         </tr>
       </thead>
       <tbody>
@@ -411,11 +416,11 @@ function renderTimeslotOverview() {
             <td>${escapeHtml(row.label)}</td>
             <td>
               <div class="bar-cell">
-                <div class="bar-track"><div class="bar-fill" style="width:${max > 0 ? Math.round((row.total / max) * 100) : 0}%"></div></div>
+                <div class="bar-track"><div class="bar-fill" style="width:${Math.round((row.total / max) * 100)}%"></div></div>
                 <span>${row.total}</span>
               </div>
             </td>
-            <td class="subtle">${row.total > 0 ? escapeHtml(row.bestGroup) : '—'}</td>
+            <td class="subtle">${row.bestPending ? escapeHtml(row.bestPending) : '<span style="opacity:0.45">all groups finalised</span>'}</td>
           </tr>
         `).join('')}
       </tbody>
