@@ -794,19 +794,32 @@ async function removeExtraAttendee(groupId, email) {
 }
 
 function buildMessage(group) {
-  const time = finalTimeForGroup(group);
-  if (!time) return '';
-  const location = group.final_location || APP.defaultLocation;
+  const finalTimes = finalTimesForGroup(group);
+  if (!finalTimes.length) return '';
+
+  const timeText = finalTimes.length === 1
+    ? formatDateRange(finalTimes[0].starts_at, finalTimes[0].ends_at)
+    : finalTimes.map((t, i) => `session ${i + 1}: ${formatDateRange(t.starts_at, t.ends_at)}`).join(', and ');
+
+  const note = finalTimes[0]?.final_note || '';
+  const location = finalTimes[0]?.final_location || APP.defaultLocation;
+
   return [
     'Kia ora,',
     '',
-    `Your focus group session for ${group.name} has been scheduled for ${formatDateRange(time.starts_at, time.ends_at)}.`,
+    'Thank you very much for being available for a focus group about Dio\'s school information system project.',
     '',
-    `Location: ${location}`,
-    group.final_note ? `Note: ${group.final_note}` : null,
+    `Your focus group session for ${group.name} has been scheduled for ${timeText}.${note ? ' ' + note : ''}`,
     '',
-    'Please add the attached calendar file to your calendar.',
-  ].filter((line) => line !== null).join('\n');
+    `This will be a ${location} and I\'ll send you a calendar invitation shortly with joining details. The session will be facilitated by Damien Evans from Centorrino Technologies (an organisation working with Dio on our system refresh project). It will be transcribed so your comments can be accurately reflected.`,
+    '',
+    'I won\'t be in the session but if you have any questions at all, please reach out to me anytime through a Teams message, email, or by phone as below.',
+    '',
+    '',
+    'Kind regards,',
+    '',
+    'Kelly',
+  ].join('\n');
 }
 
 function copyGroupNames(groupId) {
