@@ -28,6 +28,7 @@ let session = null;
 let summaryRows = [];
 let responses = [];
 let extraAttendees = new Map(); // group_id → [{email, name, added_at}]
+let timeOptions = [];           // [{id, label, starts_at, ends_at}] sorted by starts_at
 let selectedGroupId = null;
 let respondentSort = { col: 'group', dir: 'asc' };
 let searchTerm = '';
@@ -213,6 +214,7 @@ function render() {
   renderGroupSelector();
   renderGroupDetail(selectedGroupId);
   renderRespondents();
+  renderSubmitForm();
 }
 
 function renderSidebar() {
@@ -758,6 +760,168 @@ function renderRespondents() {
   });
 }
 
+function renderSubmitForm() {
+  const submitEl = $('#section-submit-body');
+  if (!submitEl) return;
+
+  // Preserve current field values across re-renders (e.g. after data refresh)
+  const savedName    = $('#sr-name')?.value  ?? '';
+  const savedEmail   = $('#sr-email')?.value ?? '';
+  const savedGroup   = $('#sr-group')?.value ?? '';
+  const savedChecked = new Set([...document.querySelectorAll('.submit-slot-cb:checked')].map((cb) => cb.value));
+  const savedNotice  = $('#sr-notice')?.textContent ?? '';
+
+  const groups = groupModels();
+
+  const groupOptions = groups.map((g) =>
+    `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`
+  ).join('');
+
+  // Build slot checkboxes grouped by calendar day
+  const byDay = new Map();
+  for (const t of timeOptions) {
+    const day = new Date(t.starts_at).toLocaleDateString('en-NZ', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Pacific/Auckland',
+    });
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(t);
+  }
+
+  const slotsHtml = [...byDay.entries()].map(([day, slots]) => `
+    <div class="submit-day-group">
+      <div class="submit-day-label">${escapeHtml(day)}</div>
+      ${slots.map((t) => `
+        <label class="submit-slot-row">
+          <input type="checkbox" class="submit-slot-cb" value="${escapeHtml(t.id)}">
+          <span>${escapeHtml(t.label)}</span>
+          <span class="submit-slot-time">${escapeHtml(formatDateRange(t.starts_at, t.ends_at))}</span>
+        </label>
+      `).join('')}
+    </div>
+  `).join('');
+
+  submitEl.innerHTML = `
+    <form id="submit-response-form" style="max-width:600px">
+      <p class="subtle" style="margin:0 0 14px">
+        Type an email address and tab away — if they've already responded, the form pre-fills so you can update their choices.
+        If they haven't signed up yet, a placeholder account is created automatically.
+      </p>
+      <div id="sr-notice" class="sr-notice" style="display:none"></div>
+      <div class="submit-fields">
+        <label>
+          <span class="meta-line">Email address</span>
+          <input type="email" id="sr-email" placeholder="jane.smith@example.com" required autocomplete="off">
+        </label>
+        <label>
+          <span class="meta-line">Full name</span>
+          <input type="text" id="sr-name" placeholder="Jane Smith" required>
+        </label>
+      </div>
+      <label style="display:block;margin-bottom:16px">
+        <span class="meta-line">Focus group</span>
+        <select id="sr-group">${groupOptions}</select>
+      </label>
+      <div style="margin-bottom:8px">
+        <span class="meta-line" style="font-weight:600">Tick the slots they are available for</span>
+        <button type="button" id="sr-check-all" class="ghost" style="font-size:12px;margin-left:10px">All</button>
+        <button type="button" id="sr-uncheck-all" class="ghost" style="font-size:12px">None</button>
+      </div>
+      ${slotsHtml.length ? `<div id="sr-slots">${slotsHtml}</div>` : '<p class="subtle">No time slots found — add some first.</p>'}
+      <div style="margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button type="submit" class="primary" id="sr-submit-btn">Save response</button>
+        <button type="button" class="ghost" id="sr-clear-btn">Clear form</button>
+        <span id="sr-save-status" class="subtle" style="font-size:13px"></span>
+      </div>
+    </form>
+  `;
+
+  // Restore preserved values
+  if (savedEmail)  $('#sr-email').value = savedEmail;
+  if (savedName)   $('#sr-name').value  = savedName;
+  if (savedGroup && $('#sr-group')) $('#sr-group').value = savedGroup;
+  document.querySelectorAll('.submit-slot-cb').forEach((cb) => {
+    if (savedChecked.has(cb.value)) cb.checked = true;
+  });
+  if (savedNotice) {
+    $('#sr-notice').textContent = savedNotice;
+    $('#sr-notice').style.display = '';
+  }
+
+  // Email blur → auto-fill from existing respondent
+  $('#sr-email').addEventListener('blur', () => {
+    const email = $('#sr-email').value.trim().toLowerCase();
+    if (!email) return;
+    const existing = responses.find((r) => r.user_email.toLowerCase() === email);
+    if (!existing) return;
+
+    $('#sr-name').value = existing.user_name || '';
+    const groupSel = $('#sr-group');
+    if (groupSel) groupSel.value = existing.group_id;
+    document.querySelectorAll('.submit-slot-cb').forEach((cb) => {
+      cb.checked = existing.available_time_option_ids?.includes(cb.value) ?? false;
+    });
+    const notice = $('#sr-notice');
+    notice.textContent = `Existing response loaded for ${existing.user_name || email} (${existing.group_name}) — edit and save to update.`;
+    notice.style.display = '';
+  });
+
+  // Clear notice when email changes
+  $('#sr-email').addEventListener('input', () => {
+    $('#sr-notice').style.display = 'none';
+  });
+
+  // All / None buttons
+  $('#sr-check-all').addEventListener('click', () => {
+    document.querySelectorAll('.submit-slot-cb').forEach((cb) => { cb.checked = true; });
+  });
+  $('#sr-uncheck-all').addEventListener('click', () => {
+    document.querySelectorAll('.submit-slot-cb').forEach((cb) => { cb.checked = false; });
+  });
+
+  // Clear form
+  $('#sr-clear-btn').addEventListener('click', () => {
+    $('#submit-response-form').reset();
+    $('#sr-notice').style.display = 'none';
+    $('#sr-save-status').textContent = '';
+  });
+
+  // Submit
+  $('#submit-response-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name       = $('#sr-name').value.trim();
+    const email      = $('#sr-email').value.trim();
+    const groupId    = $('#sr-group').value;
+    const available  = [...document.querySelectorAll('.submit-slot-cb:checked')].map((cb) => cb.value);
+    await submitResponse(name, email, groupId, available);
+  });
+}
+
+async function submitResponse(name, email, groupId, availableIds) {
+  const btn    = $('#sr-submit-btn');
+  const status = $('#sr-save-status');
+  btn.disabled = true;
+  if (status) status.textContent = 'Saving…';
+  try {
+    const { data, error } = await SB.rpc('admin_submit_response', {
+      p_email:               email,
+      p_name:                name,
+      p_group_id:            groupId,
+      p_available_time_ids:  availableIds,
+    });
+    if (error) throw error;
+    if (!data?.ok) throw new Error(data?.error || 'save_failed');
+    await loadData(); // re-renders everything including the form (values preserved)
+    toast(`Response saved for ${name}.`, 'success');
+    if (status) status.textContent = `✓ Saved at ${new Date().toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' })}`;
+  } catch (err) {
+    console.error(err);
+    toast('Could not save response.', 'error');
+    if (status) status.textContent = `Error: ${escapeHtml(err.message)}`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 async function addFinalSession(groupId, timeId) {
@@ -977,6 +1141,20 @@ async function loadData() {
 
   summaryRows = summaryR.data || [];
   responses = responsesR.data || [];
+
+  // Derive unique time options from summary rows (cross-join ensures all appear)
+  const toMap = new Map();
+  for (const row of summaryRows) {
+    if (!toMap.has(row.time_option_id)) {
+      toMap.set(row.time_option_id, {
+        id: row.time_option_id,
+        label: row.time_label,
+        starts_at: row.starts_at,
+        ends_at: row.ends_at,
+      });
+    }
+  }
+  timeOptions = [...toMap.values()].sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
 
   extraAttendees = new Map();
   for (const row of extrasR.data || []) {

@@ -75,6 +75,16 @@ details.panel > summary::-webkit-details-marker { display: none; }
 .conflict-avail { color: var(--muted); white-space: nowrap; }
 .conflict-better { color: var(--green); font-size: 12px; }
 .conflict-clash { color: #c0392b; font-size: 12px; font-weight: 600; }
+
+/* Add / edit response form */
+.submit-fields { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.submit-fields label { flex: 1; min-width: 200px; }
+.submit-day-group { margin-bottom: 14px; }
+.submit-day-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brand); margin-bottom: 6px; }
+.submit-slot-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer; }
+.submit-slot-row input[type=checkbox] { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; }
+.submit-slot-time { color: var(--muted); font-size: 12px; }
+.sr-notice { font-size: 13px; color: var(--brand); background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 5px; padding: 7px 12px; margin-bottom: 14px; }
 </style>
 </head>
 <body>
@@ -103,6 +113,7 @@ details.panel > summary::-webkit-details-marker { display: none; }
         <button class="sidebar-link" data-scroll="section-timeslots">Timeslots</button>
         <button class="sidebar-link" data-scroll="section-groups">Group scheduler</button>
         <button class="sidebar-link" data-scroll="respondents-details">Respondents</button>
+        <button class="sidebar-link" data-scroll="section-submit">Add response</button>
         <a class="sidebar-link" href="/calendar">Calendar view →</a>
         <hr class="sidebar-hr">
         <div class="sidebar-label">Groups</div>
@@ -143,6 +154,14 @@ details.panel > summary::-webkit-details-marker { display: none; }
           </summary>
           <div id="respondent-table" class="panel-body" style="padding:0"></div>
         </details>
+
+        <section id="section-submit" class="panel" style="margin-top:18px">
+          <div class="panel-header">
+            <h2>Add / edit response</h2>
+            <span class="meta-line">Submit availability on behalf of a participant</span>
+          </div>
+          <div id="section-submit-body" class="panel-body"></div>
+        </section>
       </div>
 
     </div>
