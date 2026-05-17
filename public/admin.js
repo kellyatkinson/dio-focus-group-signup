@@ -177,6 +177,29 @@ function responsesForGroup(groupId) {
   return [...primary, ...extras];
 }
 
+// People available for a specific confirmed session (used for per-session buttons)
+function responsesForSession(groupId, timeOptionId) {
+  const primary = responses
+    .filter((r) => r.group_id === groupId && r.available_time_option_ids?.includes(timeOptionId))
+    .sort((a, b) => sortName(a).localeCompare(sortName(b)));
+
+  // Extra attendees are included in all sessions for the group
+  const extras = (extraAttendees.get(groupId) || []).map((e) => {
+    const orig = responses.find((r) => r.user_email.toLowerCase() === e.email.toLowerCase());
+    return {
+      user_email: e.email,
+      user_name: e.name || e.email,
+      group_id: orig?.group_id || '',
+      group_name: orig ? `${orig.group_name} (extra)` : 'Extra attendee',
+      available_time_option_ids: orig?.available_time_option_ids || [],
+      available_labels: orig?.available_labels || [],
+      unavailable_labels: orig?.unavailable_labels || [],
+    };
+  });
+
+  return [...primary, ...extras];
+}
+
 function firstName(fullName) {
   if (!fullName) return '?';
   return fullName.trim().split(/\s+/)[0];
@@ -496,20 +519,24 @@ function renderGroupDetail(groupId) {
   const finalBlock = finalTimes.length > 0 ? `
     <div class="notification-tools" style="margin-top:16px">
       <h3 style="margin:0 0 10px;font-size:14px;font-weight:650">Confirmed session${finalTimes.length > 1 ? 's' : ''}</h3>
-      ${finalTimes.map((ft) => `
+      ${finalTimes.map((ft) => {
+        const sessionCount = responsesForSession(group.id, ft.id).length;
+        return `
         <div class="final-session-entry">
-          <div><strong>${escapeHtml(formatDateRange(ft.starts_at, ft.ends_at))}</strong></div>
+          <div><strong>${escapeHtml(formatDateRange(ft.starts_at, ft.ends_at))}</strong>
+            <span class="subtle" style="margin-left:8px">${sessionCount} attendee${sessionCount === 1 ? '' : 's'}</span>
+          </div>
           <div class="subtle">${escapeHtml(ft.final_location || APP.defaultLocation)}${ft.final_note ? ` — ${escapeHtml(ft.final_note)}` : ''}</div>
-        </div>
-      `).join('')}
-      <div class="actions" style="margin-top:10px">
-        <button class="secondary copy-names" type="button" data-group-id="${escapeHtml(group.id)}">Copy names</button>
-        <button class="secondary copy-emails" type="button" data-group-id="${escapeHtml(group.id)}">Copy emails</button>
-        <button class="secondary copy-message" type="button" data-group-id="${escapeHtml(group.id)}">Copy message</button>
-        <button class="secondary download-ics" type="button" data-group-id="${escapeHtml(group.id)}">Download .ics</button>
-        <button class="secondary download-recipients" type="button" data-group-id="${escapeHtml(group.id)}">Download recipient CSV</button>
-        <button class="ghost open-mail" type="button" data-group-id="${escapeHtml(group.id)}">Open email draft</button>
-      </div>
+          <div class="actions" style="margin-top:8px">
+            <button class="secondary copy-names-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Copy names</button>
+            <button class="secondary copy-emails-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Copy emails</button>
+            <button class="secondary copy-message-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Copy message</button>
+            <button class="secondary download-ics-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Download .ics</button>
+            <button class="secondary download-recipients-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Download recipient CSV</button>
+            <button class="ghost open-mail-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Open email draft</button>
+          </div>
+        </div>`;
+      }).join('')}
     </div>
   ` : '';
 
@@ -658,23 +685,23 @@ function wireGroupDetailActions(group) {
   groupDetailEl.querySelectorAll('.remove-final').forEach((btn) => {
     btn.addEventListener('click', () => removeFinalSession(btn.dataset.groupId, btn.dataset.timeId));
   });
-  groupDetailEl.querySelectorAll('.copy-names').forEach((btn) => {
-    btn.addEventListener('click', () => copyGroupNames(btn.dataset.groupId));
+  groupDetailEl.querySelectorAll('.copy-names-session').forEach((btn) => {
+    btn.addEventListener('click', () => copySessionNames(btn.dataset.groupId, btn.dataset.timeId));
   });
-  groupDetailEl.querySelectorAll('.copy-emails').forEach((btn) => {
-    btn.addEventListener('click', () => copyGroupEmails(btn.dataset.groupId));
+  groupDetailEl.querySelectorAll('.copy-emails-session').forEach((btn) => {
+    btn.addEventListener('click', () => copySessionEmails(btn.dataset.groupId, btn.dataset.timeId));
   });
-  groupDetailEl.querySelectorAll('.copy-message').forEach((btn) => {
-    btn.addEventListener('click', () => copyGroupMessage(btn.dataset.groupId));
+  groupDetailEl.querySelectorAll('.copy-message-session').forEach((btn) => {
+    btn.addEventListener('click', () => copySessionMessage(btn.dataset.groupId, btn.dataset.timeId));
   });
-  groupDetailEl.querySelectorAll('.download-ics').forEach((btn) => {
-    btn.addEventListener('click', () => downloadGroupIcs(btn.dataset.groupId));
+  groupDetailEl.querySelectorAll('.download-ics-session').forEach((btn) => {
+    btn.addEventListener('click', () => downloadSessionIcs(btn.dataset.groupId, btn.dataset.timeId));
   });
-  groupDetailEl.querySelectorAll('.download-recipients').forEach((btn) => {
-    btn.addEventListener('click', () => downloadRecipients(btn.dataset.groupId));
+  groupDetailEl.querySelectorAll('.download-recipients-session').forEach((btn) => {
+    btn.addEventListener('click', () => downloadSessionRecipients(btn.dataset.groupId, btn.dataset.timeId));
   });
-  groupDetailEl.querySelectorAll('.open-mail').forEach((btn) => {
-    btn.addEventListener('click', () => openMailDraft(btn.dataset.groupId));
+  groupDetailEl.querySelectorAll('.open-mail-session').forEach((btn) => {
+    btn.addEventListener('click', () => openSessionMailDraft(btn.dataset.groupId, btn.dataset.timeId));
   });
   groupDetailEl.querySelectorAll('.remove-extra').forEach((btn) => {
     btn.addEventListener('click', () => removeExtraAttendee(btn.dataset.groupId, btn.dataset.email));
@@ -1036,6 +1063,102 @@ function copyGroupMessage(groupId) {
   const group = groupById(groupId);
   if (!group) return;
   copyText(buildMessage(group), 'Message copied.');
+}
+
+// ── Per-session actions ───────────────────────────────────────────────────────
+
+function copySessionNames(groupId, timeId) {
+  const names = responsesForSession(groupId, timeId).map((r) => r.user_name || r.user_email).join('; ');
+  copyText(names, 'Names copied.');
+}
+
+function copySessionEmails(groupId, timeId) {
+  const emails = responsesForSession(groupId, timeId).map((r) => r.user_email).join('; ');
+  copyText(emails, 'Emails copied.');
+}
+
+function buildMessageForSession(group, ft) {
+  const note     = ft.final_note     || '';
+  const location = ft.final_location || APP.defaultLocation;
+  return [
+    'Kia ora,', '',
+    'Thank you very much for being available for a focus group about Dio\'s school information system project.', '',
+    `Your focus group session for ${group.name} has been scheduled for ${formatDateRange(ft.starts_at, ft.ends_at)}.${note ? ' ' + note : ''}`, '',
+    `This will be a ${location} and I'll send you a calendar invitation shortly with joining details. The session will be facilitated by Damien Evans from Centorrino Technologies (an organisation working with Dio on our system refresh project). It will be transcribed so your comments can be accurately reflected.`, '',
+    'I won\'t be in the session but if you have any questions at all, please reach out to me anytime through a Teams message, email, or by phone as below.',
+    '', '', 'Kind regards,', '', 'Kelly',
+  ].join('\n');
+}
+
+function copySessionMessage(groupId, timeId) {
+  const group = groupById(groupId);
+  if (!group) return;
+  const ft = group.times.find((t) => t.id === timeId);
+  if (!ft) return;
+  copyText(buildMessageForSession(group, ft), 'Message copied.');
+}
+
+function buildSessionIcs(group, ft) {
+  const recipients = responsesForSession(group.id, ft.id);
+  const location   = ft.final_location || APP.defaultLocation;
+  const description = [
+    `Group: ${group.name}`,
+    ft.final_note ? `Note: ${ft.final_note}` : '',
+    `Organised by ${APP.organisationName}`,
+  ].filter(Boolean).join('\n');
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Dio Focus Group Scheduler//EN',
+    'CALSCALE:GREGORIAN', 'METHOD:REQUEST', 'BEGIN:VEVENT',
+    `UID:${group.id}-${ft.id}@focus-group-scheduler`,
+    `DTSTAMP:${utcStamp(new Date())}`,
+    `DTSTART:${utcStamp(ft.starts_at)}`,
+    `DTEND:${utcStamp(ft.ends_at)}`,
+    `SUMMARY:${icsEscape(`Focus group: ${group.name}`)}`,
+    `LOCATION:${icsEscape(location)}`,
+    `DESCRIPTION:${icsEscape(description)}`,
+    `ORGANIZER;CN=${icsEscape(APP.organisationName)}:mailto:${session.user.email}`,
+    ...recipients.map((r) =>
+      `ATTENDEE;CN=${icsEscape(r.user_name || r.user_email)};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${r.user_email}`
+    ),
+    'END:VEVENT', 'END:VCALENDAR',
+  ];
+  return lines.map(foldIcsLine).join('\r\n');
+}
+
+function downloadSessionIcs(groupId, timeId) {
+  const group = groupById(groupId);
+  if (!group) return;
+  const ft = group.times.find((t) => t.id === timeId);
+  if (!ft) { toast('Session not found.', 'error'); return; }
+  const ics = buildSessionIcs(group, ft);
+  downloadText(`focus-group-${group.id}-${ft.label.replace(/[^a-z0-9]/gi, '-')}.ics`, ics, 'text/calendar;charset=utf-8');
+  toast('Calendar file downloaded.', 'success');
+}
+
+function downloadSessionRecipients(groupId, timeId) {
+  const group = groupById(groupId);
+  if (!group) return;
+  const ft = group.times.find((t) => t.id === timeId);
+  const headers = ['Name', 'Email', 'Group', 'Available', 'Unavailable'];
+  const rows = responsesForSession(groupId, timeId).map((r) => [
+    r.user_name, r.user_email, r.group_name,
+    (r.available_labels || []).join('; '),
+    (r.unavailable_labels || []).join('; '),
+  ]);
+  const csv = [headers, ...rows].map((r) => r.map(csvEscape).join(',')).join('\r\n');
+  const slug = ft ? ft.label.replace(/[^a-z0-9]/gi, '-').toLowerCase() : timeId.slice(0, 8);
+  downloadText(`focus-group-${group.id}-${slug}-recipients.csv`, `﻿${csv}`, 'text/csv;charset=utf-8');
+}
+
+function openSessionMailDraft(groupId, timeId) {
+  const group = groupById(groupId);
+  if (!group) return;
+  const ft = group.times.find((t) => t.id === timeId);
+  if (!ft) return;
+  const to   = responsesForSession(groupId, timeId).map((r) => encodeURIComponent(r.user_email)).join(',');
+  const subj = `Focus group session: ${group.name}`;
+  const body = `${buildMessageForSession(group, ft)}\n\nCalendar file: download the .ics from the admin page and attach it before sending.`;
+  window.location.href = `mailto:${to}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
 }
 
 function buildGroupIcs(group) {
