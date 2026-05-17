@@ -152,13 +152,15 @@ details.panel > summary::-webkit-details-marker { display: none; }
       <div class="admin-main">
         <section id="summary" class="panel" style="margin-bottom:18px"></section>
 
-        <section id="section-timeslots" class="panel" style="margin-top:18px">
-          <div class="panel-header">
-            <h2>Timeslot popularity</h2>
-            <span class="meta-line">Total available across all groups — most popular first</span>
-          </div>
+        <details id="section-timeslots" class="panel" style="margin-top:18px">
+          <summary>
+            <div class="panel-header">
+              <h2>Timeslot popularity</h2>
+              <span class="meta-line">Total available across all groups — most popular first</span>
+            </div>
+          </summary>
           <div id="timeslot-overview" class="panel-body" style="padding:0"></div>
-        </section>
+        </details>
 
         <section id="section-groups" class="panel" style="margin-top:18px">
           <div class="panel-header">
