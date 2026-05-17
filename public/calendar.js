@@ -136,6 +136,7 @@ function buildGrid() {
       .map((r) => firstName(r.user_name || r.user_email));
 
     slotBlocks.get(row.time_option_id).push({
+      group_id:   row.group_id,
       group_name: row.group_name,
       available:  avail,
       total:      Number(row.total_in_group || 0),
@@ -150,20 +151,35 @@ function buildGrid() {
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
-function renderLegend(groupColorMap, groupNameMap) {
+function renderLegend(groupColorMap, groupNameMap, filterGroupId = '') {
   $('#cal-legend').innerHTML =
     '<span class="cal-legend-label">Groups:</span>' +
-    [...groupColorMap.entries()].map(([id, c]) => `
-      <div class="cal-legend-item" style="background:${c.bg};border-color:${c.border}">
-        <span class="cal-legend-swatch" style="background:${c.bg};border-color:${c.border}"></span>
-        <span style="color:${c.text};font-weight:600">${escapeHtml(groupNameMap.get(id) || id)}</span>
-      </div>`).join('');
+    [...groupColorMap.entries()].map(([id, c]) => {
+      const dimmed = filterGroupId && filterGroupId !== id;
+      return `
+        <div class="cal-legend-item" style="background:${c.bg};border-color:${c.border};opacity:${dimmed ? 0.35 : 1}">
+          <span class="cal-legend-swatch" style="background:${c.bg};border-color:${c.border}"></span>
+          <span style="color:${c.text};font-weight:600">${escapeHtml(groupNameMap.get(id) || id)}</span>
+        </div>`;
+    }).join('');
+}
+
+function populateGroupFilter(groupColorMap, groupNameMap) {
+  const sel = $('#group-filter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All groups</option>' +
+    [...groupColorMap.keys()].map((id) =>
+      `<option value="${escapeHtml(id)}">${escapeHtml(groupNameMap.get(id) || id)}</option>`
+    ).join('');
+  if (current) sel.value = current;
 }
 
 function renderCalendar() {
   const { uniqueDays, uniqueTimes, cellLookup, slotBlocks, groupColorMap, groupNameMap } = buildGrid();
+  const filterGroupId = $('#group-filter').value;
 
-  renderLegend(groupColorMap, groupNameMap);
+  populateGroupFilter(groupColorMap, groupNameMap);
+  renderLegend(groupColorMap, groupNameMap, filterGroupId);
 
   const thead = `<thead><tr>
     <th class="cal-corner"></th>
@@ -173,7 +189,10 @@ function renderCalendar() {
   const tbody = `<tbody>${uniqueTimes.map(({ minutes, label }) => {
     const cells = uniqueDays.map((day) => {
       const slotId = cellLookup.get(`${day}|${minutes}`);
-      const blocks = slotId ? (slotBlocks.get(slotId) || []) : [];
+      const allBlocks = slotId ? (slotBlocks.get(slotId) || []) : [];
+      const blocks = filterGroupId
+        ? allBlocks.filter((b) => b.group_id === filterGroupId)
+        : allBlocks;
 
       if (blocks.length === 0) return '<td class="cal-cell cal-cell--empty"></td>';
 
@@ -213,6 +232,7 @@ async function main() {
   try {
     await loadData();
     renderCalendar();
+    $('#group-filter').addEventListener('change', renderCalendar);
     loadingEl.classList.add('hidden');
     contentEl.classList.remove('hidden');
   } catch (error) {
