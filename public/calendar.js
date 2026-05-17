@@ -161,8 +161,14 @@ function buildGrid() {
     const blockRespondents = responses.filter(
       (r) => r.group_id === row.group_id && r.available_time_option_ids?.includes(row.time_option_id),
     );
-    const names  = blockRespondents.map((r) => firstName(r.user_name || r.user_email));
     const emails = blockRespondents.map((r) => r.user_email.toLowerCase());
+    // Track per-person scheduled status so names can be individually styled
+    const attendees = blockRespondents
+      .map((r) => ({
+        name:      firstName(r.user_name || r.user_email),
+        scheduled: scheduledEmails.has(r.user_email.toLowerCase()),
+      }))
+      .sort((a, b) => a.scheduled - b.scheduled); // unscheduled names first
 
     const isConfirmed = confirmedSet.has(`${row.group_id}:${row.time_option_id}`);
 
@@ -182,7 +188,7 @@ function buildGrid() {
       group_name: row.group_name,
       available:  avail,
       total:      Number(row.total_in_group || 0),
-      names,
+      attendees,
       color:      groupColorMap.get(row.group_id),
       confirmed:  isConfirmed,
       taken:      confirmedTimeIds.has(row.time_option_id) && !isConfirmed,
@@ -267,7 +273,12 @@ function renderCalendar() {
               <span class="block-group">${escapeHtml(b.group_name)}</span>
               <span class="block-count">${b.available}/${b.total}</span>
             </div>
-            ${b.names.length ? `<div class="block-names">${escapeHtml(b.names.join(', '))}</div>` : ''}
+            ${b.attendees.length ? `<div class="block-names">${
+              b.attendees.map((a) => a.scheduled
+                ? `<span class="name-scheduled">${escapeHtml(a.name)}</span>`
+                : escapeHtml(a.name)
+              ).join(', ')
+            }</div>` : ''}
             ${label}
           </div>`;
         }).join('');
