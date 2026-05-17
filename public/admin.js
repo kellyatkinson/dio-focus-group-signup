@@ -237,6 +237,7 @@ function render() {
   renderGroupSelector();
   renderGroupDetail(selectedGroupId);
   renderRespondents();
+  renderSuggestions();
   renderSubmitForm();
 }
 
@@ -785,6 +786,123 @@ function renderRespondents() {
       renderRespondents();
     });
   });
+}
+
+function renderSuggestions() {
+  const el = $('#suggestions-body');
+  if (!el) return;
+
+  const groups = groupModels();
+  const HALF_HOUR = 30 * 60 * 1000;
+
+  // All confirmed start-times across every group (for back-to-back warning)
+  const confirmedStartMs = [];
+  for (const g of groups) {
+    for (const t of g.times) {
+      if (t.is_final) confirmedStartMs.push(new Date(t.starts_at).getTime());
+    }
+  }
+
+  const rows = groups.map((group) => {
+    const groupRespondents = responses.filter((r) => r.group_id === group.id);
+    if (groupRespondents.length === 0) return null;
+
+    // Emails already covered by any confirmed session for this group
+    const coveredEmails = new Set();
+    for (const time of group.times) {
+      if (!time.is_final) continue;
+      for (const r of groupRespondents) {
+        if (r.available_time_option_ids?.includes(time.id)) {
+          coveredEmails.add(r.user_email.toLowerCase());
+        }
+      }
+    }
+
+    const uncovered = groupRespondents.filter((r) => !coveredEmails.has(r.user_email.toLowerCase()));
+
+    if (uncovered.length === 0) {
+      return { group, allCovered: true };
+    }
+
+    // For each non-final slot, count uncovered people who can attend
+    const takenIds = takenByOtherGroupsTimeIds(group.id);
+    const options = [];
+
+    for (const time of group.times) {
+      if (time.is_final) continue;
+      const available = uncovered.filter((r) => r.available_time_option_ids?.includes(time.id));
+      if (available.length < 2) continue;
+
+      const startMs = new Date(time.starts_at).getTime();
+      const isNear  = confirmedStartMs.some((ct) => { const d = Math.abs(startMs - ct); return d > 0 && d <= HALF_HOUR; });
+      const isTaken = takenIds.has(time.id);
+
+      options.push({ time, available, isTaken, isNear });
+    }
+
+    // Best first: non-taken, non-near, then most available
+    options.sort((a, b) => {
+      const score = (x) => (x.isTaken ? 200 : 0) + (x.isNear ? 20 : 0) - x.available.length;
+      return score(a) - score(b);
+    });
+
+    return { group, allCovered: false, uncovered, options: options.slice(0, 3) };
+  }).filter(Boolean);
+
+  if (rows.length === 0) {
+    el.innerHTML = '<p class="empty" style="padding:14px">No respondent data loaded.</p>';
+    return;
+  }
+
+  // Separate groups needing action from fully-covered ones
+  const needsAction = rows.filter((r) => !r.allCovered);
+  const fullyCovered = rows.filter((r) => r.allCovered);
+
+  const suggHtml = needsAction.map(({ group, uncovered, options }) => {
+    const uncoveredNames = uncovered.map((r) => firstName(r.user_name || r.user_email));
+
+    const slotsHtml = options.length === 0
+      ? `<div class="sugg-no-slot">No slot has ≥ 2 of these people available together — may need individual outreach.</div>`
+      : options.map((opt, i) => {
+          const availNames  = opt.available.map((r) => firstName(r.user_name || r.user_email));
+          const stillOut    = uncovered.filter((r) => !opt.available.some((a) => a.user_email === r.user_email));
+          const stillNames  = stillOut.map((r) => firstName(r.user_name || r.user_email));
+          const warnings    = [
+            opt.isTaken ? '<span class="badge neutral" title="Another group has confirmed this slot">Slot taken</span>' : '',
+            opt.isNear  ? '<span class="badge neutral" title="Within 30 min of a confirmed session">Back-to-back risk</span>' : '',
+          ].filter(Boolean).join(' ');
+          return `
+            <div class="sugg-slot${i === 0 ? ' sugg-slot--best' : ''}">
+              <span class="sugg-slot-rank">${i === 0 ? '★ Best' : `Option ${i + 1}`}</span>
+              <span class="sugg-slot-time">${escapeHtml(opt.time.label)}</span>
+              <span class="sugg-slot-detail">${escapeHtml(formatDateRange(opt.time.starts_at, opt.time.ends_at))}</span>
+              ${warnings}
+              <div class="sugg-names-yes">✓ ${escapeHtml(availNames.join(', '))} (${opt.available.length} of ${uncovered.length} uncovered)</div>
+              ${stillNames.length
+                ? `<div class="sugg-names-out">Still out after this: ${escapeHtml(stillNames.join(', '))}</div>`
+                : `<div class="sugg-names-yes">All uncovered people included ✓</div>`}
+            </div>`;
+        }).join('');
+
+    return `
+      <div class="sugg-row">
+        <div class="sugg-group-header">
+          <span class="sugg-group-name">${escapeHtml(group.name)}</span>
+          <span class="sugg-uncovered-names">${uncovered.length} not yet scheduled: ${escapeHtml(uncoveredNames.join(', '))}</span>
+        </div>
+        ${slotsHtml}
+      </div>`;
+  }).join('');
+
+  const coveredHtml = fullyCovered.map(({ group }) => `
+    <div class="sugg-row sugg-row--covered">
+      <span class="sugg-group-name">${escapeHtml(group.name)}</span>
+      <span class="badge good">All covered</span>
+    </div>`).join('');
+
+  el.innerHTML = needsAction.length === 0
+    ? '<p class="empty" style="padding:14px">🎉 All respondents are covered by confirmed sessions.</p>'
+    : suggHtml + (fullyCovered.length ? `<div style="border-top:2px solid var(--line);margin-top:4px">${coveredHtml}</div>` : '');
 }
 
 function renderSubmitForm() {
