@@ -117,6 +117,19 @@ function formatDateRange(startIso, endIso) {
   return `${datePart}, ${startTime} – ${endPart}`;
 }
 
+// ── Checklist persistence (localStorage) ─────────────────────────────────────
+
+function getChecklist() {
+  try { return JSON.parse(localStorage.getItem('focus-group-checklists') || '{}'); } catch { return {}; }
+}
+
+function setChecklistItem(key, field, value) {
+  const cl = getChecklist();
+  if (!cl[key]) cl[key] = {};
+  cl[key][field] = value;
+  localStorage.setItem('focus-group-checklists', JSON.stringify(cl));
+}
+
 function csvEscape(value) {
   const text = value == null ? '' : String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -517,11 +530,32 @@ function renderGroupDetail(groupId) {
     `;
   }).join('');
 
+  // Compute uncovered respondents (needed for finalBlock + notBooked panel)
+  const coveredEmails = new Set();
+  for (const time of group.times) {
+    if (!time.is_final) continue;
+    for (const r of primaryRespondents) {
+      if (r.available_time_option_ids?.includes(time.id)) coveredEmails.add(r.user_email.toLowerCase());
+    }
+  }
+  const notBookedRespondents = primaryRespondents.filter((r) => !coveredEmails.has(r.user_email.toLowerCase()));
+
+  const cl = getChecklist();
+
   const finalBlock = finalTimes.length > 0 ? `
     <div class="notification-tools" style="margin-top:16px">
       <h3 style="margin:0 0 10px;font-size:14px;font-weight:650">Confirmed session${finalTimes.length > 1 ? 's' : ''}</h3>
       ${finalTimes.map((ft) => {
         const sessionCount = responsesForSession(group.id, ft.id).length;
+        const sessionKey   = `session:${group.id}:${ft.id}`;
+        const clState      = cl[sessionKey] || {};
+        const mkItem = (field, label) => {
+          const done = !!clState[field];
+          return `<label class="checklist-item${done ? ' checklist-item--done' : ''}">
+            <input type="checkbox" class="cl-check" data-key="${escapeHtml(sessionKey)}" data-field="${field}"${done ? ' checked' : ''}>
+            <span>${label}</span>
+          </label>`;
+        };
         return `
         <div class="final-session-entry">
           <div><strong>${escapeHtml(formatDateRange(ft.starts_at, ft.ends_at))}</strong>
@@ -536,8 +570,33 @@ function renderGroupDetail(groupId) {
             <button class="secondary download-recipients-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Download recipient CSV</button>
             <button class="ghost open-mail-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Open email draft</button>
           </div>
+          <div class="session-checklist">
+            <div class="checklist-label">Tasks for this session</div>
+            ${mkItem('spreadsheet',       'Updated Excel spreadsheet with facilitator')}
+            ${mkItem('participantEmail',   'Participant email sent')}
+            ${mkItem('teamsInvite',        'Forwarded Teams meeting invitation to attendees')}
+          </div>
         </div>`;
       }).join('')}
+    </div>
+  ` : '';
+
+  const notBookedKey   = `notbooked:${group.id}`;
+  const notBookedState = cl[notBookedKey] || {};
+  const notBookedBlock = finalTimes.length > 0 && notBookedRespondents.length > 0 ? `
+    <div class="notbooked-panel">
+      <h4>Not booked into any session (${notBookedRespondents.length})</h4>
+      <p class="subtle" style="margin:0 0 10px;font-size:13px">
+        ${escapeHtml(notBookedRespondents.map((r) => r.user_name || r.user_email).join(', '))}
+      </p>
+      <div class="actions" style="margin-bottom:10px">
+        <button class="secondary copy-notbooked-emails" type="button" data-group-id="${escapeHtml(group.id)}">Copy email addresses</button>
+        <button class="secondary copy-notbooked-message" type="button" data-group-id="${escapeHtml(group.id)}">Copy email template</button>
+      </div>
+      <label class="checklist-item${notBookedState.email ? ' checklist-item--done' : ''}">
+        <input type="checkbox" class="cl-check" data-key="${escapeHtml(notBookedKey)}" data-field="email"${notBookedState.email ? ' checked' : ''}>
+        <span>'Not this time' email sent</span>
+      </label>
     </div>
   ` : '';
 
@@ -571,6 +630,7 @@ function renderGroupDetail(groupId) {
       </label>
     </div>
     ${finalBlock}
+    ${notBookedBlock}
     ${conflictsBlock}
     ${extraAttendeesBlock}
   `;
@@ -704,6 +764,21 @@ function wireGroupDetailActions(group) {
   groupDetailEl.querySelectorAll('.open-mail-session').forEach((btn) => {
     btn.addEventListener('click', () => openSessionMailDraft(btn.dataset.groupId, btn.dataset.timeId));
   });
+  // Checklist checkboxes — persist to localStorage, toggle strikethrough immediately
+  groupDetailEl.querySelectorAll('.cl-check').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      setChecklistItem(cb.dataset.key, cb.dataset.field, cb.checked);
+      cb.closest('.checklist-item')?.classList.toggle('checklist-item--done', cb.checked);
+    });
+  });
+
+  groupDetailEl.querySelectorAll('.copy-notbooked-emails').forEach((btn) => {
+    btn.addEventListener('click', () => copyNotBookedEmails(btn.dataset.groupId));
+  });
+  groupDetailEl.querySelectorAll('.copy-notbooked-message').forEach((btn) => {
+    btn.addEventListener('click', () => copyNotBookedMessage(btn.dataset.groupId));
+  });
+
   groupDetailEl.querySelectorAll('.remove-extra').forEach((btn) => {
     btn.addEventListener('click', () => removeExtraAttendee(btn.dataset.groupId, btn.dataset.email));
   });
@@ -1181,6 +1256,37 @@ function copyGroupMessage(groupId) {
   const group = groupById(groupId);
   if (!group) return;
   copyText(buildMessage(group), 'Message copied.');
+}
+
+function copyNotBookedEmails(groupId) {
+  const group = groupById(groupId);
+  if (!group) return;
+  const confirmed = new Set(
+    group.times.filter((t) => t.is_final).flatMap((t) =>
+      responses.filter((r) => r.group_id === groupId && r.available_time_option_ids?.includes(t.id)).map((r) => r.user_email.toLowerCase())
+    )
+  );
+  const notBooked = responses
+    .filter((r) => r.group_id === groupId && !confirmed.has(r.user_email.toLowerCase()))
+    .map((r) => r.user_email);
+  if (notBooked.length === 0) { toast('Everyone in this group is booked into a session.', 'info'); return; }
+  copyText(notBooked.join('; '), 'Email addresses copied.');
+}
+
+function copyNotBookedMessage(groupId) {
+  const group = groupById(groupId);
+  if (!group) return;
+  const message = [
+    'Kia ora,', '',
+    `Thank you for completing the availability survey for the ${group.name} focus group.`,
+    '',
+    'Unfortunately we weren\'t able to include you in a scheduled session this time around. We may need to run additional sessions later in the process, and if so we\'ll be in touch to see if you\'re available.',
+    '',
+    'Thank you for your willingness to participate — it\'s very much appreciated.',
+    '',
+    '', 'Kind regards,', '', 'Kelly',
+  ].join('\n');
+  copyText(message, 'Email template copied.');
 }
 
 // ── Per-session actions ───────────────────────────────────────────────────────
