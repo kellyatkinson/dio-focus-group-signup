@@ -162,6 +162,11 @@ function buildGrid() {
       (r) => r.group_id === row.group_id && r.available_time_option_ids?.includes(row.time_option_id),
     );
     const emails = blockRespondents.map((r) => r.user_email.toLowerCase());
+    const isConfirmed = confirmedSet.has(`${row.group_id}:${row.time_option_id}`);
+
+    // "covered" — every person in this block is already in one of this group's confirmed sessions
+    const scheduledEmails = scheduledEmailsByGroup.get(row.group_id) || new Set();
+
     // Track per-person scheduled status so names can be individually styled
     const attendees = blockRespondents
       .map((r) => ({
@@ -169,11 +174,6 @@ function buildGrid() {
         scheduled: scheduledEmails.has(r.user_email.toLowerCase()),
       }))
       .sort((a, b) => a.scheduled - b.scheduled); // unscheduled names first
-
-    const isConfirmed = confirmedSet.has(`${row.group_id}:${row.time_option_id}`);
-
-    // "covered" — every person in this block is already in one of this group's confirmed sessions
-    const scheduledEmails = scheduledEmailsByGroup.get(row.group_id) || new Set();
     const covered = !isConfirmed && emails.length > 0 && emails.every((e) => scheduledEmails.has(e));
 
     // "near" — slot starts within 30 min (exclusive) of any confirmed slot (back-to-back fatigue)
