@@ -29,7 +29,8 @@ const PALETTE = [
 
 let summaryRows = [];
 let responses = [];
-let confirmedSet = new Set(); // 'group_id:time_option_id'
+let confirmedSet = new Set();    // 'group_id:time_option_id'
+let confirmedTimeIds = new Set(); // time_option_ids confirmed by ANY group
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ async function loadData() {
   summaryRows = summaryR.data || [];
   responses = responsesR.data || [];
   confirmedSet = new Set((finalR.data || []).map((r) => `${r.group_id}:${r.time_option_id}`));
+  confirmedTimeIds = new Set((finalR.data || []).map((r) => r.time_option_id));
 }
 
 // ─── Grid building ───────────────────────────────────────────────────────────
@@ -135,6 +137,7 @@ function buildGrid() {
       .filter((r) => r.group_id === row.group_id && r.available_time_option_ids?.includes(row.time_option_id))
       .map((r) => firstName(r.user_name || r.user_email));
 
+    const isConfirmed = confirmedSet.has(`${row.group_id}:${row.time_option_id}`);
     slotBlocks.get(row.time_option_id).push({
       group_id:   row.group_id,
       group_name: row.group_name,
@@ -142,7 +145,9 @@ function buildGrid() {
       total:      Number(row.total_in_group || 0),
       names,
       color:      groupColorMap.get(row.group_id),
-      confirmed:  confirmedSet.has(`${row.group_id}:${row.time_option_id}`),
+      confirmed:  isConfirmed,
+      // Slot is "taken" if another group has confirmed this time_option_id
+      taken:      confirmedTimeIds.has(row.time_option_id) && !isConfirmed,
     });
   }
 
@@ -197,9 +202,14 @@ function renderCalendar() {
       if (blocks.length === 0) return '<td class="cal-cell cal-cell--empty"></td>';
 
       const blockHtml = blocks
-        .sort((a, b) => b.available - a.available) // most available first
+        // confirmed first, then non-taken by available count, taken last
+        .sort((a, b) => {
+          if (a.confirmed !== b.confirmed) return a.confirmed ? -1 : 1;
+          if (a.taken !== b.taken) return a.taken ? 1 : -1;
+          return b.available - a.available;
+        })
         .map((b) => `
-          <div class="avail-block${b.confirmed ? ' avail-block--confirmed' : ''}"
+          <div class="avail-block${b.confirmed ? ' avail-block--confirmed' : b.taken ? ' avail-block--taken' : ''}"
                style="background:${b.color.bg};border-left-color:${b.color.border};color:${b.color.text}">
             <div class="block-header">
               <span class="block-group">${escapeHtml(b.group_name)}</span>
@@ -207,6 +217,7 @@ function renderCalendar() {
             </div>
             ${b.names.length ? `<div class="block-names">${escapeHtml(b.names.join(', '))}</div>` : ''}
             ${b.confirmed ? '<div class="block-confirmed">✓ Confirmed</div>' : ''}
+            ${b.taken ? '<div class="block-taken">Slot taken</div>' : ''}
           </div>`).join('');
 
       return `<td class="cal-cell">${blockHtml}</td>`;

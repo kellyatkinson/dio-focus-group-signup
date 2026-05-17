@@ -195,6 +195,15 @@ function groupById(groupId) {
   return groupModels().find((g) => g.id === groupId) || null;
 }
 
+// Returns the Set of time_option_ids confirmed as final by groups OTHER than groupId
+function takenByOtherGroupsTimeIds(groupId) {
+  return new Set(
+    summaryRows
+      .filter((r) => r.is_final && r.group_id !== groupId)
+      .map((r) => r.time_option_id),
+  );
+}
+
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
 function render() {
@@ -239,11 +248,14 @@ function renderSummary() {
     const finalTime = finalTimeForGroup(group);
 
     const finalTimes = finalTimesForGroup(group);
+    const takenIds = takenByOtherGroupsTimeIds(group.id);
     const bestTime = isFinalised
       ? (finalTimes[0] || null)
-      : group.times.reduce((best, t) => {
-          return Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best;
-        }, null);
+      : group.times
+          .filter((t) => !takenIds.has(t.id))
+          .reduce((best, t) => {
+            return Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best;
+          }, null);
 
     const bestCount = Number(bestTime?.available_count || 0);
     const pct = total > 0 ? Math.round((bestCount / total) * 100) : 0;
@@ -276,9 +288,12 @@ function renderSummary() {
     const gTotal = Number(group.total || 0);
     totalRespondents += gTotal;
     const isFinalised = group.final_sessions_count > 0;
+    const takenIdsForSched = takenByOtherGroupsTimeIds(group.id);
     const bestTime = isFinalised
       ? finalTimeForGroup(group)
-      : group.times.reduce((best, t) => Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null);
+      : group.times
+          .filter((t) => !takenIdsForSched.has(t.id))
+          .reduce((best, t) => Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null);
     if (!bestTime) continue;
     const avail = Number(bestTime.available_count || 0);
     totalBestAvail += avail;
@@ -404,17 +419,36 @@ function renderGroupDetail(groupId) {
   const finalTimes = finalTimesForGroup(group);
   const finalTime = finalTimes[0] || null;
 
-  const sortedTimes = [...group.times].sort((a, b) => Number(b.available_count || 0) - Number(a.available_count || 0));
-  const maxAvail = sortedTimes.length > 0 ? Number(sortedTimes[0].available_count || 0) : 1;
+  const takenByOthers = takenByOtherGroupsTimeIds(group.id);
+
+  // Sort: final slots first, then non-taken by available desc, then taken slots last
+  const sortedTimes = [...group.times].sort((a, b) => {
+    const aFinal = a.is_final, bFinal = b.is_final;
+    const aTaken = takenByOthers.has(a.id) && !aFinal;
+    const bTaken = takenByOthers.has(b.id) && !bFinal;
+    if (aFinal !== bFinal) return aFinal ? -1 : 1;
+    if (aTaken !== bTaken) return aTaken ? 1 : -1;
+    return Number(b.available_count || 0) - Number(a.available_count || 0);
+  });
+
+  // Best = highest-available non-final non-taken slot
+  const bestTimeId = group.times
+    .filter((t) => !t.is_final && !takenByOthers.has(t.id))
+    .reduce((best, t) =>
+      Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null)?.id;
+
+  const maxAvail = sortedTimes.filter((t) => !t.is_final && !takenByOthers.has(t.id))
+    .reduce((m, t) => Math.max(m, Number(t.available_count || 0)), 0) || 1;
 
   const groupResponses = responses.filter((r) => r.group_id === group.id);
 
-  const timesHtml = sortedTimes.map((time, index) => {
+  const timesHtml = sortedTimes.map((time) => {
     const available = Number(time.available_count || 0);
     const leftOut = total > 0 ? total - available : 0;
     const pct = maxAvail > 0 ? Math.round((available / maxAvail) * 100) : 0;
     const isFinal = time.is_final;
-    const isBest = index === 0 && available > 0 && !isFinal;
+    const isTaken = takenByOthers.has(time.id) && !isFinal;
+    const isBest = !isFinal && !isTaken && time.id === bestTimeId && available > 0;
     const coverageText = total > 0
       ? `${available}/${total}${leftOut > 0 ? ` · <span style="color:var(--red,#c0392b)">${leftOut} left out</span>` : ' · <span style="color:var(--green)">all covered</span>'}`
       : `${available} available`;
@@ -432,8 +466,9 @@ function renderGroupDetail(groupId) {
         ${noNames.length ? `<span class="slot-names-no">✗ ${noNames.join(', ')}</span>` : ''}
       </div>`;
 
+    const rowStyle = isTaken ? ' style="opacity:0.55"' : '';
     return `
-      <tr class="${isFinal ? 'slot-final-row' : ''}">
+      <tr class="${isFinal ? 'slot-final-row' : ''}"${rowStyle}>
         <td>${escapeHtml(time.label)}</td>
         <td class="subtle">${escapeHtml(formatDateRange(time.starts_at, time.ends_at))}</td>
         <td>
@@ -446,6 +481,7 @@ function renderGroupDetail(groupId) {
         <td class="slot-actions">
           ${isBest ? '<span class="badge good">Best</span>' : ''}
           ${isFinal ? '<span class="badge good">Final</span>' : ''}
+          ${isTaken ? '<span class="badge neutral" title="Another group has confirmed this slot">Taken</span>' : ''}
           ${isFinal
             ? `<button class="ghost remove-final" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(time.id)}" style="margin-left:6px">Remove final</button>`
             : `<button class="secondary set-final" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(time.id)}" style="margin-left:6px">Set as final</button>`

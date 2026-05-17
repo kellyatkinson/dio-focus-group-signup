@@ -63,11 +63,13 @@ main { width: 100%; max-width: none; padding: 0; margin: 0; }
   padding: 5px 7px; margin-bottom: 4px; font-size: 12px; line-height: 1.4;
 }
 .avail-block--confirmed { outline: 2px solid var(--green); outline-offset: -1px; }
+.avail-block--taken { opacity: 0.38; filter: grayscale(0.55); }
 .block-header { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; margin-bottom: 2px; }
 .block-group { font-weight: 650; font-size: 11px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .block-count { font-size: 11px; font-weight: 650; white-space: nowrap; flex-shrink: 0; }
 .block-names { font-size: 11px; line-height: 1.5; opacity: 0.88; }
 .block-confirmed { font-size: 10px; font-weight: 700; margin-top: 3px; color: var(--green); letter-spacing: 0.02em; }
+.block-taken { font-size: 10px; font-weight: 700; margin-top: 3px; color: #888; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
