@@ -125,7 +125,32 @@ function buildGrid() {
   }
   const groupColorMap = new Map(groupOrder.map((id, i) => [id, PALETTE[i % PALETTE.length]]));
 
-  // Step 5: per-slot blocks (groups with at least 1 available person)
+  // Step 5a: pre-compute which emails are already in a confirmed session per group
+  // (so we can dim blocks where everyone is already scheduled)
+  const scheduledEmailsByGroup = new Map(); // group_id → Set<email>
+  for (const entry of confirmedSet) {
+    const colonIdx = entry.indexOf(':');
+    const gId = entry.slice(0, colonIdx);
+    const tId = entry.slice(colonIdx + 1);
+    if (!scheduledEmailsByGroup.has(gId)) scheduledEmailsByGroup.set(gId, new Set());
+    const target = scheduledEmailsByGroup.get(gId);
+    for (const r of responses) {
+      if (r.group_id === gId && r.available_time_option_ids?.includes(tId)) {
+        target.add(r.user_email.toLowerCase());
+      }
+    }
+  }
+
+  // Step 5b: build set of confirmed slot start-times (ms) for proximity check
+  const confirmedStartMs = new Set();
+  for (const entry of confirmedSet) {
+    const tId = entry.slice(entry.indexOf(':') + 1);
+    const sr = summaryRows.find((r) => r.time_option_id === tId);
+    if (sr) confirmedStartMs.add(new Date(sr.starts_at).getTime());
+  }
+  const HALF_HOUR_MS = 30 * 60 * 1000;
+
+  // Step 5c: per-slot blocks (groups with at least 1 available person)
   const slotBlocks = new Map(); // time_option_id → [block, …]
   for (const row of summaryRows) {
     const avail = Number(row.available_count || 0);
@@ -133,11 +158,25 @@ function buildGrid() {
 
     if (!slotBlocks.has(row.time_option_id)) slotBlocks.set(row.time_option_id, []);
 
-    const names = responses
-      .filter((r) => r.group_id === row.group_id && r.available_time_option_ids?.includes(row.time_option_id))
-      .map((r) => firstName(r.user_name || r.user_email));
+    const blockRespondents = responses.filter(
+      (r) => r.group_id === row.group_id && r.available_time_option_ids?.includes(row.time_option_id),
+    );
+    const names  = blockRespondents.map((r) => firstName(r.user_name || r.user_email));
+    const emails = blockRespondents.map((r) => r.user_email.toLowerCase());
 
     const isConfirmed = confirmedSet.has(`${row.group_id}:${row.time_option_id}`);
+
+    // "covered" — every person in this block is already in one of this group's confirmed sessions
+    const scheduledEmails = scheduledEmailsByGroup.get(row.group_id) || new Set();
+    const covered = !isConfirmed && emails.length > 0 && emails.every((e) => scheduledEmails.has(e));
+
+    // "near" — slot starts within 30 min (exclusive) of any confirmed slot (back-to-back fatigue)
+    const slotStartMs = new Date(row.starts_at).getTime();
+    const near = !isConfirmed && [...confirmedStartMs].some((ct) => {
+      const diff = Math.abs(slotStartMs - ct);
+      return diff > 0 && diff <= HALF_HOUR_MS;
+    });
+
     slotBlocks.get(row.time_option_id).push({
       group_id:   row.group_id,
       group_name: row.group_name,
@@ -146,8 +185,9 @@ function buildGrid() {
       names,
       color:      groupColorMap.get(row.group_id),
       confirmed:  isConfirmed,
-      // Slot is "taken" if another group has confirmed this time_option_id
       taken:      confirmedTimeIds.has(row.time_option_id) && !isConfirmed,
+      covered,   // all people already in a confirmed session → redundant slot
+      near,      // within 30 min of a confirmed slot → back-to-back risk
     });
   }
 
@@ -202,23 +242,35 @@ function renderCalendar() {
       if (blocks.length === 0) return '<td class="cal-cell cal-cell--empty"></td>';
 
       const blockHtml = blocks
-        // confirmed first, then non-taken by available count, taken last
+        // Sort: confirmed → normal → near → taken → covered (most to least useful)
         .sort((a, b) => {
           if (a.confirmed !== b.confirmed) return a.confirmed ? -1 : 1;
-          if (a.taken !== b.taken) return a.taken ? 1 : -1;
+          const rank = (x) => x.covered ? 4 : x.taken ? 3 : x.near ? 2 : 0;
+          if (rank(a) !== rank(b)) return rank(a) - rank(b);
           return b.available - a.available;
         })
-        .map((b) => `
-          <div class="avail-block${b.confirmed ? ' avail-block--confirmed' : b.taken ? ' avail-block--taken' : ''}"
+        .map((b) => {
+          const dimClass = b.confirmed    ? ' avail-block--confirmed'
+                         : b.covered     ? ' avail-block--covered'
+                         : b.taken       ? ' avail-block--taken'
+                         : b.near        ? ' avail-block--near'
+                         : '';
+          const label = b.confirmed ? '<div class="block-confirmed">✓ Confirmed</div>'
+                      : b.covered   ? '<div class="block-dim-label">Already scheduled</div>'
+                      : b.taken     ? '<div class="block-dim-label">Slot taken</div>'
+                      : b.near      ? '<div class="block-dim-label">Near confirmed slot</div>'
+                      : '';
+          return `
+          <div class="avail-block${dimClass}"
                style="background:${b.color.bg};border-left-color:${b.color.border};color:${b.color.text}">
             <div class="block-header">
               <span class="block-group">${escapeHtml(b.group_name)}</span>
               <span class="block-count">${b.available}/${b.total}</span>
             </div>
             ${b.names.length ? `<div class="block-names">${escapeHtml(b.names.join(', '))}</div>` : ''}
-            ${b.confirmed ? '<div class="block-confirmed">✓ Confirmed</div>' : ''}
-            ${b.taken ? '<div class="block-taken">Slot taken</div>' : ''}
-          </div>`).join('');
+            ${label}
+          </div>`;
+        }).join('');
 
       return `<td class="cal-cell">${blockHtml}</td>`;
     }).join('');
