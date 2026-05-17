@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Availability Calendar — Dio Focus Groups</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='14' fill='%231d3b6d'/%3E%3Ctext x='50' y='66' text-anchor='middle' font-family='Arial,sans-serif' font-size='56' font-weight='700' fill='white'%3EF%3C/text%3E%3C/svg%3E">
+<style>
+main { width: 100%; max-width: none; padding: 0; margin: 0; }
+.cal-page { padding: 18px; }
+
+/* Legend */
+.cal-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+.cal-legend-label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+.cal-legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 8px 3px 4px; border-radius: 4px; border: 1px solid var(--line); }
+.cal-legend-swatch { width: 12px; height: 12px; border-radius: 2px; border-width: 2px; border-style: solid; flex-shrink: 0; }
+
+/* Table wrapper — horizontal scroll only */
+.cal-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.cal-table { border-collapse: collapse; table-layout: fixed; }
+
+/* Sticky corner + header */
+.cal-corner {
+  position: sticky; left: 0; top: 0; z-index: 30;
+  background: var(--brand-dark); min-width: 72px; width: 72px;
+}
+.cal-day-header {
+  background: var(--brand); color: #fff; font-weight: 650; font-size: 13px;
+  padding: 10px 10px; text-align: center; width: 190px; min-width: 190px;
+  position: sticky; top: 0; z-index: 10; white-space: nowrap;
+  border-left: 1px solid rgba(255,255,255,0.15);
+}
+
+/* Row */
+.cal-row:nth-child(even) .cal-cell { background: #fafbfd; }
+.cal-row:nth-child(even) .cal-cell--empty { background: #f5f6fa; }
+
+/* Time label column */
+.cal-time-label {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  padding: 8px 10px 0; text-align: right; vertical-align: top;
+  position: sticky; left: 0; background: white; z-index: 5;
+  border-right: 2px solid var(--line); white-space: nowrap;
+  width: 72px; min-width: 72px;
+}
+.cal-row:nth-child(even) .cal-time-label { background: #fafbfd; }
+
+/* Data cells */
+.cal-cell {
+  border-left: 1px solid var(--line); border-top: 1px solid var(--line);
+  padding: 4px; vertical-align: top; min-height: 56px;
+}
+.cal-cell--empty { background: #f8f9fc; }
+
+/* Availability blocks inside cells */
+.avail-block {
+  border-radius: 5px; border-left: 4px solid transparent;
+  padding: 5px 7px; margin-bottom: 4px; font-size: 12px; line-height: 1.4;
+}
+.avail-block--confirmed { outline: 2px solid var(--green); outline-offset: -1px; }
+.block-header { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; margin-bottom: 2px; }
+.block-group { font-weight: 650; font-size: 11px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.block-count { font-size: 11px; font-weight: 650; white-space: nowrap; flex-shrink: 0; }
+.block-names { font-size: 11px; line-height: 1.5; opacity: 0.88; }
+.block-confirmed { font-size: 10px; font-weight: 700; margin-top: 3px; color: var(--green); letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>Availability Calendar</h1>
+  <div class="topbar-actions">
+    <a href="/admin">← Admin</a>
+    <button id="signout-btn" type="button">Sign out</button>
+  </div>
+</header>
+
+<main>
+  <div id="loading" class="page-band">Loading…</div>
+  <section id="not-admin" class="page-band hidden">
+    <h2 class="page-title">Not authorised</h2>
+    <p class="subtle">Your account is not in the admin list.</p>
+  </section>
+  <section id="cal-content" class="cal-page hidden">
+    <div id="cal-legend" class="cal-legend"></div>
+    <div class="cal-wrap">
+      <div id="cal-table"></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+<script src="config.js"></script>
+<script type="module" src="calendar.js"></script>
+</body>
+</html>
