@@ -358,17 +358,22 @@ function renderTimeOptions() {
     return;
   }
 
+  const cutoff = new Date(Date.now() + 30 * 60 * 1000);
+  const currentGroupId = form.querySelector('input[name="group-id"]:checked')?.value || null;
+
+  // When the selected group has finalised sessions, only show those confirmed slots
+  const currentGroup = groups.find((g) => g.id === currentGroupId);
+  const finalIds = new Set((currentGroup ? selectedFinalTimes(currentGroup) : []).map((ft) => ft.id));
+  const displayOptions = finalIds.size > 0 ? timeOptions.filter((t) => finalIds.has(t.id)) : timeOptions;
+
   const byDay = new Map();
-  for (const time of timeOptions) {
+  for (const time of displayOptions) {
     const dayKey = new Date(time.starts_at).toLocaleDateString('en-NZ', {
       weekday: 'long', day: 'numeric', month: 'long',
     });
     if (!byDay.has(dayKey)) byDay.set(dayKey, []);
     byDay.get(dayKey).push(time);
   }
-
-  const cutoff = new Date(Date.now() + 30 * 60 * 1000);
-  const currentGroupId = form.querySelector('input[name="group-id"]:checked')?.value || null;
 
   timeGrid.innerHTML = Array.from(byDay.entries()).map(([day, times]) => `
     <div class="day-section">
@@ -478,7 +483,7 @@ function renderStatusCards() {
   }
 
   $('#status-copy').innerHTML = finalTimes.length > 0
-    ? 'Your session has been confirmed — your availability is now locked. We\'ll be in touch with details by email.'
+    ? 'Your group\'s session has been scheduled — please confirm your attendance using the form below.'
     : myRespondent
       ? 'You can update your availability for sessions that haven\'t started yet.'
       : 'Choose your group, then mark each time as available or unavailable.';
@@ -487,13 +492,22 @@ function renderStatusCards() {
 
 function renderFormState() {
   const finalised = selectedFinalTimes(selectedGroup()).length > 0;
-  const disabled = responsesClosed() || saveInFlight || finalised;
-  form.querySelectorAll('input').forEach((input) => {
-    if (input.closest('.time-choice--past')) return;
-    input.disabled = disabled;
+  const allLocked = responsesClosed() || saveInFlight;
+
+  // Group selector: lock when finalised (can't switch groups once confirmed) or when closed
+  form.querySelectorAll('input[name="group-id"]').forEach((input) => {
+    input.disabled = allLocked || finalised;
   });
-  saveBtn.disabled = disabled;
-  clearBtn.disabled = disabled;
+
+  // Time slot inputs: only lock when closed — finalised groups still allow confirming attendance
+  form.querySelectorAll('input').forEach((input) => {
+    if (input.name === 'group-id') return;
+    if (input.closest('.time-choice--past')) return;
+    input.disabled = allLocked;
+  });
+
+  saveBtn.disabled = allLocked;
+  clearBtn.disabled = allLocked;
 }
 
 function renderGroupCounts() {
