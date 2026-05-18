@@ -1236,7 +1236,7 @@ function buildMessage(group) {
     '',
     `Your focus group session for ${group.name} has been scheduled for ${timeText}.${note ? ' ' + note : ''}`,
     '',
-    `This will be a ${location} and I\'ll send you a calendar invitation shortly with joining details. The session will be facilitated by Damien Evans from Centorrino Technologies (an organisation working with Dio on our system refresh project). It will be transcribed so your comments can be accurately reflected.`,
+    `This will be a ${location} and I\'ll send you a calendar invitation shortly with joining details. The session will be facilitated by Damien Evans from Centorrino Technologies (an organisation working with Dio on our system refresh project). It will be transcribed so your comments can be accurately reflected. The transcript will be shared with me, but when insights are shared or reported on, comments won't be linked back to individuals.`,
     '',
     'I won\'t be in the session but if you have any questions at all, please reach out to me anytime through a Teams message, email, or by phone as below.',
     '',
@@ -1313,7 +1313,7 @@ function buildMessageForSession(group, ft) {
     'Kia ora,', '',
     'Thank you very much for being available for a focus group about Dio\'s school information system project.', '',
     `Your focus group session for ${group.name} has been scheduled for ${formatDateRange(ft.starts_at, ft.ends_at)}.${note ? ' ' + note : ''}`, '',
-    `This will be a ${location} and I'll send you a calendar invitation shortly with joining details. The session will be facilitated by Damien Evans from Centorrino Technologies (an organisation working with Dio on our system refresh project). It will be transcribed so your comments can be accurately reflected.`, '',
+    `This will be a ${location} and I'll send you a calendar invitation shortly with joining details. The session will be facilitated by Damien Evans from Centorrino Technologies (an organisation working with Dio on our system refresh project). It will be transcribed so your comments can be accurately reflected. The transcript will be shared with me, but when insights are shared or reported on, comments won't be linked back to individuals.`, '',
     'I won\'t be in the session but if you have any questions at all, please reach out to me anytime through a Teams message, email, or by phone as below.',
     '', '', 'Kind regards,', '', 'Kelly',
   ].join('\n');
