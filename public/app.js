@@ -386,7 +386,10 @@ function renderTimeOptions() {
     byDay.get(dayKey).push(time);
   }
 
-  timeGrid.innerHTML = Array.from(byDay.entries()).map(([day, times]) => `
+  timeGrid.innerHTML = Array.from(byDay.entries()).map(([day, times]) => {
+    // Hide the whole day if every slot in it is past
+    if (times.every((t) => new Date(t.starts_at) <= cutoff)) return '';
+    return `
     <div class="day-section">
       <h3 class="day-heading">${escapeHtml(day)}</h3>
       <div class="day-slots">
@@ -431,7 +434,8 @@ function renderTimeOptions() {
         }).join('')}
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   updateSelectedTimeCount();
 }
