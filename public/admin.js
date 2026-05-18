@@ -1544,18 +1544,47 @@ function showNewResponsesBanner(newResponses, since) {
     weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
   });
 
-  const byGroup = new Map();
-  for (const r of newResponses) {
-    byGroup.set(r.group_name, (byGroup.get(r.group_name) || 0) + 1);
+  // Tag each response: are they available for their group's confirmed session?
+  const tagged = newResponses.map((r) => {
+    const finalRows = summaryRows.filter((s) => s.is_final && s.group_id === r.group_id);
+    const finalTimeIds = new Set(finalRows.map((s) => s.time_option_id));
+    const needsDetails = finalTimeIds.size > 0 && r.available_time_option_ids?.some((id) => finalTimeIds.has(id));
+    return { ...r, needsDetails };
+  });
+
+  const needDetails = tagged.filter((r) => r.needsDetails);
+  const other = tagged.filter((r) => !r.needsDetails);
+
+  let bodyHtml = '';
+
+  if (needDetails.length > 0) {
+    const names = needDetails
+      .map((r) => `<strong>${escapeHtml(r.user_name || r.user_email)}</strong> (${escapeHtml(r.group_name)})`)
+      .join(', ');
+    bodyHtml += `<div style="margin-bottom:${other.length > 0 ? '6px' : '0'}">
+      ⚠️ Signed up for a confirmed session — send them the details: ${names}
+    </div>`;
   }
-  const summary = [...byGroup.entries()].map(([g, n]) => `${n} in ${g}`).join(', ');
+
+  if (other.length > 0) {
+    const byGroup = new Map();
+    for (const r of other) byGroup.set(r.group_name, (byGroup.get(r.group_name) || 0) + 1);
+    const summary = [...byGroup.entries()].map(([g, n]) => `${n} in ${g}`).join(', ');
+    bodyHtml += `<span>📬 ${other.length} other new response${other.length === 1 ? '' : 's'} since ${escapeHtml(sinceLabel)}: ${escapeHtml(summary)}</span>`;
+  }
+
+  if (!bodyHtml) {
+    const byGroup = new Map();
+    for (const r of newResponses) byGroup.set(r.group_name, (byGroup.get(r.group_name) || 0) + 1);
+    const summary = [...byGroup.entries()].map(([g, n]) => `${n} in ${g}`).join(', ');
+    bodyHtml = `<span>📬 <strong>${newResponses.length} new or updated response${newResponses.length === 1 ? '' : 's'}</strong> since your last visit (${escapeHtml(sinceLabel)}): ${escapeHtml(summary)}</span>`;
+  }
 
   const banner = document.createElement('div');
   banner.id = 'new-responses-banner';
   banner.className = 'new-responses-banner';
   banner.innerHTML = `
-    <span>📬 <strong>${newResponses.length} new or updated response${newResponses.length === 1 ? '' : 's'}</strong>
-    since your last visit (${escapeHtml(sinceLabel)}): ${escapeHtml(summary)}</span>
+    <div style="flex:1">${bodyHtml}</div>
     <div style="display:flex;gap:8px;flex-shrink:0">
       <button class="ghost" id="banner-view-btn" style="font-size:12px">View respondents</button>
       <button class="ghost" id="banner-dismiss-btn" style="font-size:12px">Dismiss</button>
@@ -1586,6 +1615,24 @@ function subscribeToResponses() {
       const verb = payload.eventType === 'INSERT' ? 'submitted' : 'updated';
       toast(`${name} ${verb} their availability — refreshing…`, 'info');
       await loadData();
+
+      // After refresh, check if this person signed up for a finalised session
+      const email = payload.new?.user_email;
+      const groupId = payload.new?.group_id;
+      if (email && groupId) {
+        const finalRows = summaryRows.filter((r) => r.is_final && r.group_id === groupId);
+        if (finalRows.length > 0) {
+          const groupName = finalRows[0].group_name || groupId;
+          const personResponse = responses.find(
+            (r) => r.user_email?.toLowerCase() === email.toLowerCase() && r.group_id === groupId,
+          );
+          const finalTimeIds = new Set(finalRows.map((r) => r.time_option_id));
+          const available = personResponse?.available_time_option_ids?.some((id) => finalTimeIds.has(id));
+          if (available) {
+            toast(`⚠️ ${name} signed up for the ${groupName} session — send them the details!`, 'success');
+          }
+        }
+      }
     })
     .subscribe();
 }
