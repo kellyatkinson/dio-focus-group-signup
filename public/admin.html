@@ -76,6 +76,9 @@ details.panel > summary::-webkit-details-marker { display: none; }
 .conflict-better { color: var(--green); font-size: 12px; }
 .conflict-clash { color: #c0392b; font-size: 12px; font-weight: 600; }
 
+/* New-since-last-visit banner */
+.new-responses-banner { background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; flex-wrap: wrap; }
+
 /* Per-session task checklists */
 .session-checklist { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .checklist-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 5px; }
@@ -144,6 +147,7 @@ details.panel > summary::-webkit-details-marker { display: none; }
         <button class="sidebar-link" data-scroll="section-suggestions">Suggestions</button>
         <button class="sidebar-link" data-scroll="section-submit">Add response</button>
         <a class="sidebar-link" href="/calendar">Calendar view →</a>
+        <a class="sidebar-link" href="/comms">Communications →</a>
         <hr class="sidebar-hr">
         <div class="sidebar-label">Groups</div>
         <div id="sidebar-groups"></div>
