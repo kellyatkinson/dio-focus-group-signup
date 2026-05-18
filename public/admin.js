@@ -571,6 +571,7 @@ function renderGroupDetail(groupId) {
             <button class="secondary copy-names-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Copy names</button>
             <button class="secondary copy-emails-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Copy emails</button>
             <button class="secondary copy-message-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Copy message</button>
+            <button class="secondary copy-forward-note-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Copy Teams forward note</button>
             <button class="secondary download-ics-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Download .ics</button>
             <button class="secondary download-recipients-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Download recipient CSV</button>
             <button class="ghost open-mail-session" type="button" data-group-id="${escapeHtml(group.id)}" data-time-id="${escapeHtml(ft.id)}">Open email draft</button>
@@ -759,6 +760,9 @@ function wireGroupDetailActions(group) {
   });
   groupDetailEl.querySelectorAll('.copy-message-session').forEach((btn) => {
     btn.addEventListener('click', () => copySessionMessage(btn.dataset.groupId, btn.dataset.timeId));
+  });
+  groupDetailEl.querySelectorAll('.copy-forward-note-session').forEach((btn) => {
+    btn.addEventListener('click', () => copyForwardNote(btn.dataset.groupId));
   });
   groupDetailEl.querySelectorAll('.download-ics-session').forEach((btn) => {
     btn.addEventListener('click', () => downloadSessionIcs(btn.dataset.groupId, btn.dataset.timeId));
@@ -1317,6 +1321,15 @@ function buildMessageForSession(group, ft) {
     'I won\'t be in the session but if you have any questions at all, please reach out to me anytime through a Teams message, email, or by phone as below.',
     '', '', 'Kind regards,', '', 'Kelly',
   ].join('\n');
+}
+
+function copyForwardNote(groupId) {
+  const group = groupById(groupId);
+  if (!group) return;
+  copyText(
+    `Please use these meeting details for the ${group.name} focus group about Dio's information systems. Thanks!`,
+    'Forwarding note copied.',
+  );
 }
 
 function copySessionMessage(groupId, timeId) {
