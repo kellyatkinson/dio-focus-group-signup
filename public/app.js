@@ -324,14 +324,26 @@ function renderGroups() {
     return;
   }
 
+  const now = new Date();
   groupGrid.innerHTML = groups.map((group) => {
     const checked = group.id === myRespondent?.group_id ? 'checked' : '';
+
+    let sessionBadge = '';
+    const finalTimes = selectedFinalTimes(group);
+    if (finalTimes.length > 0) {
+      const hasUpcoming = finalTimes.some((ft) => new Date(ft.starts_at) > now);
+      sessionBadge = hasUpcoming
+        ? '<span class="choice-session-badge choice-session-badge--upcoming">Session confirmed — can you join it?</span>'
+        : '<span class="choice-session-badge choice-session-badge--past">Session complete</span>';
+    }
+
     return `
       <label class="choice">
         <input type="radio" name="group-id" value="${escapeHtml(group.id)}" ${checked}>
         <span class="choice-inner">
           <span class="choice-title">${escapeHtml(group.name)}</span>
           ${group.description ? `<span class="choice-detail">${escapeHtml(group.description)}</span>` : ''}
+          ${sessionBadge}
         </span>
       </label>
     `;
