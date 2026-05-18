@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Communications — Dio Focus Groups</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='14' fill='%231d3b6d'/%3E%3Ctext x='50' y='66' text-anchor='middle' font-family='Arial,sans-serif' font-size='56' font-weight='700' fill='white'%3EF%3C/text%3E%3C/svg%3E">
+<style>
+main { width: 100%; max-width: none; padding: 0; margin: 0; }
+.comms-page { padding: 18px; max-width: 860px; }
+
+/* Summary banner */
+.comms-summary { padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; }
+.comms-summary--pending { background: #fffbeb; border: 1px solid #fcd34d; }
+.comms-summary--done    { background: var(--green-soft); border: 1px solid var(--green); }
+
+/* Group cards */
+.comms-group { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+.comms-group-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line); gap: 12px; }
+.comms-group-name { margin: 0; font-size: 15px; font-weight: 700; }
+.comms-session-times { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.comms-pending-badge { background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 650; white-space: nowrap; flex-shrink: 0; }
+.comms-done-badge    { background: var(--green-soft); border: 1px solid var(--green); color: #065f46; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 650; white-space: nowrap; flex-shrink: 0; }
+
+/* Section within a group */
+.comms-section { padding: 0 16px 6px; }
+.comms-section-heading { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 10px 0 4px; }
+
+/* Per-person rows */
+.comms-person { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; margin: 0 -16px; }
+.comms-person:last-child { border-bottom: none; }
+.comms-person--pending { background: #fffbeb; }
+.comms-person-info { flex: 1; min-width: 160px; }
+.comms-person-name  { font-size: 13px; font-weight: 600; display: block; }
+.comms-person-email { font-size: 11px; color: var(--muted); }
+
+/* Status badges */
+.comms-status             { font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.comms-status--pending    { background: #fef3c7; color: #92400e; }
+.comms-status--done       { background: var(--green-soft); color: #065f46; }
+.comms-status--skipped    { background: #f3f4f6; color: var(--muted); }
+
+/* Action buttons */
+.comms-person-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+.comms-btn { font-size: 12px; padding: 4px 10px; border-radius: 4px; border: 1px solid; cursor: pointer; line-height: 1.4; }
+.comms-btn--primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.comms-btn--primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
+.comms-btn--ghost { background: transparent; border-color: var(--line); color: var(--muted); }
+.comms-btn--ghost:hover { border-color: var(--brand); color: var(--brand); }
+.comms-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>Communications</h1>
+  <div class="topbar-actions">
+    <a href="/admin">← Admin</a>
+    <button id="signout-btn" type="button">Sign out</button>
+  </div>
+</header>
+
+<main>
+  <div id="loading" class="page-band">Loading…</div>
+  <section id="not-admin" class="page-band hidden">
+    <h2 class="page-title">Not authorised</h2>
+    <p class="subtle">Your account is not in the admin list.</p>
+  </section>
+
+  <section id="comms-content" class="comms-page hidden">
+    <div class="panel-header" style="margin-bottom:16px">
+      <h2 style="margin:0">Communications tracker</h2>
+      <span class="meta-line">Track confirmation emails and "not this time" emails per respondent</span>
+    </div>
+    <div id="pending-summary" class="comms-summary"></div>
+    <div id="comms-body"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+<script src="config.js"></script>
+<script type="module" src="comms.js"></script>
+</body>
+</html>
