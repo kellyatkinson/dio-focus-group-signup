@@ -364,7 +364,18 @@ function renderTimeOptions() {
   // When the selected group has finalised sessions, only show those confirmed slots
   const currentGroup = groups.find((g) => g.id === currentGroupId);
   const finalIds = new Set((currentGroup ? selectedFinalTimes(currentGroup) : []).map((ft) => ft.id));
-  const displayOptions = finalIds.size > 0 ? timeOptions.filter((t) => finalIds.has(t.id)) : timeOptions;
+
+  // Slots already confirmed for OTHER groups are no longer available
+  const takenByOthers = new Set();
+  for (const [gId, sessions] of groupFinalSessions) {
+    if (gId !== currentGroupId) {
+      for (const s of sessions) takenByOthers.add(s.time_option_id);
+    }
+  }
+
+  const displayOptions = finalIds.size > 0
+    ? timeOptions.filter((t) => finalIds.has(t.id))           // own group confirmed — show only that slot
+    : timeOptions.filter((t) => !takenByOthers.has(t.id));    // not yet confirmed — hide slots taken by others
 
   const byDay = new Map();
   for (const time of displayOptions) {
