@@ -1535,6 +1535,61 @@ async function signOut() {
   location.href = '/';
 }
 
+// ─── Late-response awareness ──────────────────────────────────────────────────
+
+function showNewResponsesBanner(newResponses, since) {
+  document.getElementById('new-responses-banner')?.remove();
+
+  const sinceLabel = new Date(since).toLocaleString('en-NZ', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+  });
+
+  const byGroup = new Map();
+  for (const r of newResponses) {
+    byGroup.set(r.group_name, (byGroup.get(r.group_name) || 0) + 1);
+  }
+  const summary = [...byGroup.entries()].map(([g, n]) => `${n} in ${g}`).join(', ');
+
+  const banner = document.createElement('div');
+  banner.id = 'new-responses-banner';
+  banner.className = 'new-responses-banner';
+  banner.innerHTML = `
+    <span>📬 <strong>${newResponses.length} new or updated response${newResponses.length === 1 ? '' : 's'}</strong>
+    since your last visit (${escapeHtml(sinceLabel)}): ${escapeHtml(summary)}</span>
+    <div style="display:flex;gap:8px;flex-shrink:0">
+      <button class="ghost" id="banner-view-btn" style="font-size:12px">View respondents</button>
+      <button class="ghost" id="banner-dismiss-btn" style="font-size:12px">Dismiss</button>
+    </div>
+  `;
+  document.querySelector('.admin-main')?.prepend(banner);
+
+  document.getElementById('banner-view-btn')?.addEventListener('click', () => {
+    $('#respondents-details').open = true;
+    document.getElementById('respondents-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    banner.remove();
+  });
+  document.getElementById('banner-dismiss-btn')?.addEventListener('click', () => banner.remove());
+}
+
+function checkNewSinceLastVisit() {
+  const lastVisit = localStorage.getItem('admin-last-visit');
+  localStorage.setItem('admin-last-visit', new Date().toISOString());
+  if (!lastVisit) return; // first visit — nothing to compare against
+  const newResponses = responses.filter((r) => new Date(r.updated_at) > new Date(lastVisit));
+  if (newResponses.length > 0) showNewResponsesBanner(newResponses, lastVisit);
+}
+
+function subscribeToResponses() {
+  SB.channel('respondent-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'respondents' }, async (payload) => {
+      const name = payload.new?.user_name || payload.new?.user_email || 'Someone';
+      const verb = payload.eventType === 'INSERT' ? 'submitted' : 'updated';
+      toast(`${name} ${verb} their availability — refreshing…`, 'info');
+      await loadData();
+    })
+    .subscribe();
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1569,6 +1624,8 @@ async function main() {
     await loadData();
     loadingEl.classList.add('hidden');
     contentEl.classList.remove('hidden');
+    checkNewSinceLastVisit();
+    subscribeToResponses();
   } catch (error) {
     console.error(error);
     loadingEl.classList.add('hidden');
