@@ -401,14 +401,10 @@ function renderTimeOptions() {
           const hasGroupInterest = inGroupCount > 0;
 
           let statsHtml = '';
-          if (stats && stats.total > 0) {
-            const people = (n) => n === 1 ? '1 other person' : `${n} other people`;
-            const groupPart = currentGroupId && inGroupCount > 0
-              ? `<span class="slot-stat-group">${people(inGroupCount)} from your group</span>`
-              : '';
+          if (currentGroupId && inGroupCount > 0) {
+            const people = inGroupCount === 1 ? '1 other person' : `${inGroupCount} other people`;
             statsHtml = `<div class="slot-stats">
-              <span class="slot-stat-total">${people(stats.total)} also available</span>
-              ${groupPart}
+              <span class="slot-stat-group">${people} from your group also available</span>
             </div>`;
           }
 
