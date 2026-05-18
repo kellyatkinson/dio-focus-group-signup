@@ -465,8 +465,16 @@ function renderGroupDetail(groupId) {
 
   const takenByOthers = takenByOtherGroupsTimeIds(group.id);
 
+  // Only show slots that are finalised OR start more than 2 hours from now
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+  const scheduleCutoff = new Date(Date.now() + TWO_HOURS_MS);
+  const schedulableTimes = group.times.filter(
+    (t) => t.is_final || new Date(t.starts_at) > scheduleCutoff,
+  );
+  const hiddenCount = group.times.length - schedulableTimes.length;
+
   // Sort: final slots first, then non-taken by available desc, then taken slots last
-  const sortedTimes = [...group.times].sort((a, b) => {
+  const sortedTimes = [...schedulableTimes].sort((a, b) => {
     const aFinal = a.is_final, bFinal = b.is_final;
     const aTaken = takenByOthers.has(a.id) && !aFinal;
     const bTaken = takenByOthers.has(b.id) && !bFinal;
@@ -476,7 +484,7 @@ function renderGroupDetail(groupId) {
   });
 
   // Best = highest-available non-final non-taken slot
-  const bestTimeId = group.times
+  const bestTimeId = schedulableTimes
     .filter((t) => !t.is_final && !takenByOthers.has(t.id))
     .reduce((best, t) =>
       Number(t.available_count || 0) > Number(best?.available_count || 0) ? t : best, null)?.id;
@@ -614,6 +622,7 @@ function renderGroupDetail(groupId) {
       <span class="badge neutral">${primaryRespondents.length} respondent${primaryRespondents.length === 1 ? '' : 's'} of ${total || '?'} in group</span>
       ${group.description ? `<span class="subtle">${escapeHtml(group.description)}</span>` : ''}
     </div>
+    ${hiddenCount > 0 ? `<p class="subtle" style="margin:0 0 8px;font-size:12px">⏱ ${hiddenCount} past or near-future slot${hiddenCount === 1 ? '' : 's'} hidden — only slots starting more than 2 hours from now are shown.</p>` : ''}
     <table class="slot-table">
       <thead>
         <tr>
@@ -623,7 +632,7 @@ function renderGroupDetail(groupId) {
           <th></th>
         </tr>
       </thead>
-      <tbody>${timesHtml}</tbody>
+      <tbody>${timesHtml || '<tr><td colspan="4" class="subtle" style="padding:12px">No upcoming slots available.</td></tr>'}</tbody>
     </table>
     <div class="final-form" style="margin-top:16px">
       <label>
