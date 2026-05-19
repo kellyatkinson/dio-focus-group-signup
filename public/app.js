@@ -334,7 +334,7 @@ function renderGroups() {
       const hasUpcoming = finalTimes.some((ft) => new Date(ft.starts_at) > now);
       sessionBadge = hasUpcoming
         ? '<span class="choice-session-badge choice-session-badge--upcoming">Session confirmed — can you join it?</span>'
-        : '<span class="choice-session-badge choice-session-badge--past">Session complete</span>';
+        : '<span class="choice-session-badge choice-session-badge--past">Session complete — another may follow</span>';
     }
 
     return `
@@ -373,9 +373,14 @@ function renderTimeOptions() {
   const cutoff = new Date(Date.now() + 30 * 60 * 1000);
   const currentGroupId = form.querySelector('input[name="group-id"]:checked')?.value || null;
 
-  // When the selected group has finalised sessions, only show those confirmed slots
+  // When the selected group has upcoming finalised sessions, only show those confirmed slots.
+  // If all finalised sessions are already past, treat the group as open again.
   const currentGroup = groups.find((g) => g.id === currentGroupId);
-  const finalIds = new Set((currentGroup ? selectedFinalTimes(currentGroup) : []).map((ft) => ft.id));
+  const upcomingFinalIds = new Set(
+    (currentGroup ? selectedFinalTimes(currentGroup) : [])
+      .filter((ft) => new Date(ft.starts_at) > cutoff)
+      .map((ft) => ft.id),
+  );
 
   // Slots already confirmed for OTHER groups are no longer available
   const takenByOthers = new Set();
@@ -385,9 +390,9 @@ function renderTimeOptions() {
     }
   }
 
-  const displayOptions = finalIds.size > 0
-    ? timeOptions.filter((t) => finalIds.has(t.id))           // own group confirmed — show only that slot
-    : timeOptions.filter((t) => !takenByOthers.has(t.id));    // not yet confirmed — hide slots taken by others
+  const displayOptions = upcomingFinalIds.size > 0
+    ? timeOptions.filter((t) => upcomingFinalIds.has(t.id))   // upcoming confirmed slot — show only that
+    : timeOptions.filter((t) => !takenByOthers.has(t.id));    // open — hide slots taken by other groups
 
   const byDay = new Map();
   for (const time of displayOptions) {
@@ -505,21 +510,27 @@ function renderStatusCards() {
     });
   }
 
-  $('#status-copy').innerHTML = finalTimes.length > 0
-    ? 'Your group\'s session has been scheduled — please confirm your attendance using the form below.'
-    : myRespondent
-      ? 'You can update your availability for sessions that haven\'t started yet.'
-      : 'Choose your group, then mark each time as available or unavailable.';
+  const allFinalPast = finalTimes.length > 0 && finalTimes.every((ft) => new Date(ft.starts_at) <= new Date());
+  $('#status-copy').innerHTML = allFinalPast
+    ? 'Your group\'s session is complete — please add your availability below in case a further session is added.'
+    : finalTimes.length > 0
+      ? 'Your group\'s session has been scheduled — please confirm your attendance using the form below.'
+      : myRespondent
+        ? 'You can update your availability for sessions that haven\'t started yet.'
+        : 'Choose your group, then mark each time as available or unavailable.';
 
 }
 
 function renderFormState() {
-  const finalised = selectedFinalTimes(selectedGroup()).length > 0;
   const allLocked = responsesClosed() || saveInFlight;
+  // Only lock the group selector if there's a confirmed session that hasn't happened yet
+  const now = new Date();
+  const hasUpcomingFinal = selectedFinalTimes(selectedGroup())
+    .some((ft) => new Date(ft.starts_at) > now);
 
-  // Group selector: lock when finalised (can't switch groups once confirmed) or when closed
+  // Group selector: lock when there's an upcoming confirmed session, or responses are closed
   form.querySelectorAll('input[name="group-id"]').forEach((input) => {
-    input.disabled = allLocked || finalised;
+    input.disabled = allLocked || hasUpcomingFinal;
   });
 
   // Time slot inputs: only lock when closed — finalised groups still allow confirming attendance
