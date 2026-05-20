@@ -465,11 +465,10 @@ function renderGroupDetail(groupId) {
 
   const takenByOthers = takenByOtherGroupsTimeIds(group.id);
 
-  // Only show slots that are finalised OR start more than 2 hours from now
-  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-  const scheduleCutoff = new Date(Date.now() + TWO_HOURS_MS);
+  // Only show slots that are finalised OR haven't started yet
+  const now = new Date();
   const schedulableTimes = group.times.filter(
-    (t) => t.is_final || new Date(t.starts_at) > scheduleCutoff,
+    (t) => t.is_final || new Date(t.starts_at) > now,
   );
   const hiddenCount = group.times.length - schedulableTimes.length;
 
